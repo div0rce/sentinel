@@ -43,7 +43,27 @@ class Settings(BaseSettings):
             "against the canonical database schema dimension before storing vectors."
         ),
     )
-    embeddings_provider: Literal["openai", "voyage"] = "openai"
+    embeddings_provider: Literal["openai", "voyage", "fake"] = "openai"
+    openai_embedding_model: str = Field(
+        default="text-embedding-3-small",
+        description="OpenAI embedding model id used when embeddings_provider='openai'.",
+    )
+
+    # --- Chunking (consumed from M2 onward) ---------------------------------------
+
+    chunk_size_tokens: int = Field(
+        default=512,
+        ge=1,
+        description="Target window size for the sliding-window chunker, in tokens.",
+    )
+    chunk_overlap_tokens: int = Field(
+        default=64,
+        ge=0,
+        description=(
+            "How many tokens of overlap to keep between successive chunks. Must be strictly "
+            "less than `chunk_size_tokens` (validated at chunker construction)."
+        ),
+    )
 
     # --- LLM / embedding API keys (unused in M1; tests and CI leave them blank) ---
 
