@@ -20,6 +20,7 @@ jobs:
     env:
       DATABASE_URL: postgresql+psycopg://sentinel:sentinel@localhost:5432/sentinel_test
       # LLM + embeddings are mocked in tests; no API keys in CI.
+      EMBEDDINGS_PROVIDER: fake
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v4
@@ -31,3 +32,7 @@ jobs:
       # container starts empty, so this step exercises the full bootstrap path.
       - run: uv run alembic upgrade head
       - run: uv run pytest -q
+      # DoD #1 (M2): `make seed` ingests the synthetic corpus end-to-end with the
+      # FakeEmbedder. The pytest tests use SAVEPOINT-isolated sessions and roll back,
+      # so the DB is empty by the time we get here.
+      - run: make seed
