@@ -27,4 +27,7 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy .
+      # DoD #1 (M1): `make migrate` applies cleanly on a fresh DB. The Postgres service
+      # container starts empty, so this step exercises the full bootstrap path.
+      - run: uv run alembic upgrade head
       - run: uv run pytest -q

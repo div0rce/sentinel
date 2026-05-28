@@ -4,7 +4,12 @@ version = "0.1.0"
 description = "Sentinel — Governed Document Intelligence Platform (portfolio; all data synthetic)"
 requires-python = ">=3.12"
 dependencies = [
+    "alembic>=1.13",
     "fastapi>=0.115",
+    "pgvector>=0.3",
+    "psycopg[binary]>=3.2",
+    "pydantic-settings>=2.6",
+    "sqlalchemy>=2.0",
     "uvicorn[standard]>=0.32",
 ]
 
@@ -35,6 +40,11 @@ python_version = "3.12"
 strict = true
 # Never recurse into the virtualenv or future-milestone trees when `mypy .` runs.
 exclude = '(^|/)(\.venv|\.git|node_modules|frontend|infra|eval|dist|build)(/|$)'
+
+# pgvector ships without a py.typed marker; treat as Any rather than failing strict mypy.
+[[tool.mypy.overrides]]
+module = ["pgvector.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
