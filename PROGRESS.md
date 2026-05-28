@@ -9,13 +9,20 @@
 ## Current state
 
 - **Active milestone:** M0 — Scaffolding, tooling, CI
-- **Status:** not started
-- **Active branch:** _none_ (still on `main`; create `feat/m00-scaffold` to begin)
-- **Last completed milestone:** _none_
-- **`make check` passing:** n/a (project not scaffolded yet)
-- **Last action:** repo created; brain files (`CLAUDE.md`, `MILESTONES.md`, `PROGRESS.md`, `HANDOFF.md`) added.
-- **Next action:** run `/start-milestone 00`, scaffold per M0 scope, get CI green, open the M0 PR.
+- **Status:** complete on branch (started 2026-05-28, completed 2026-05-28); awaiting CI green and human squash-merge
+- **Active branch:** `feat/m00-scaffold` (PR open — see Milestone status)
+- **Last completed milestone:** _none merged yet_
+- **`make check` passing:** yes (locally; CI runs on the PR)
+- **Last action:** committed M0 scaffolding in 7 small Conventional Commits, pushed, and opened the M0 PR.
+- **Next action:** human squash-merges the M0 PR. After merge, run `/start-milestone 01` to begin M1 (data model + migrations).
 - **Blockers:** none.
+
+### M0 DoD verification
+
+- [x] `make dev` would serve `/health` returning `{"status":"ok"}` — confirmed by the TestClient smoke test and by importing `backend.app.main:app` directly; full Docker run not exercised but path is correct.
+- [x] `make check` passes locally (ruff check, ruff format --check, mypy --strict, pytest).
+- [x] `no-commit-to-branch` blocks a commit on `main` — verified once: empty commit on `main` exited 1 from the hook, `main` SHA unchanged.
+- [x] Repo tree matches the M0 portion of CLAUDE.md "Target layout"; later milestones (M1–M11) fill in `backend/{alembic,app/embeddings,app/llm,app/routers,...}`, `frontend/`, `eval/`, `infra/` per their own scopes. The CLAUDE.md "Target layout" section explicitly states "Update this section if structure changes."
 
 ---
 
@@ -23,7 +30,7 @@
 
 | # | Milestone | Branch | Status | PR | Notes |
 |---|-----------|--------|--------|----|-------|
-| M0 | Scaffolding, tooling, CI | `feat/m00-scaffold` | ☐ not started | — | |
+| M0 | Scaffolding, tooling, CI | `feat/m00-scaffold` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | started 2026-05-28; completed on branch 2026-05-28 |
 | M1 | Data model + migrations | `feat/m01-data-model` | ☐ | — | |
 | M2 | Ingestion + embeddings | `feat/m02-ingestion` | ☐ | — | |
 | M3 | Retrieval + RAG | `feat/m03-rag-query` | ☐ | — | |
