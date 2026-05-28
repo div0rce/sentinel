@@ -8,21 +8,20 @@
 
 ## Current state
 
-- **Active milestone:** M0 — Scaffolding, tooling, CI
-- **Status:** complete on branch (started 2026-05-28, completed 2026-05-28); awaiting CI green and human squash-merge
-- **Active branch:** `feat/m00-scaffold` (PR open — see Milestone status)
-- **Last completed milestone:** _none merged yet_
-- **`make check` passing:** yes (locally; CI runs on the PR)
-- **Last action:** committed M0 scaffolding in 7 small Conventional Commits, pushed, and opened the M0 PR.
-- **Next action:** human squash-merges the M0 PR. After merge, run `/start-milestone 01` to begin M1 (data model + migrations).
+- **Active milestone:** M1 — Data model + migrations
+- **Status:** in progress (started 2026-05-28)
+- **Active branch:** `feat/m01-data-model`
+- **Last completed milestone:** M0 — Scaffolding, tooling, CI (PR #1, merged 2026-05-28)
+- **`make check` passing:** baseline green from M0; M1 work in progress
+- **Last action:** ran `/start-milestone 01`, switched to `main`, fast-forwarded, created `feat/m01-data-model`.
+- **Next action:** add SA 2.x + pgvector + Alembic + pydantic-settings deps; scaffold `config.py`, `db.py`, `models.py`, Alembic env + initial migration, repositories, tests.
 - **Blockers:** none.
 
-### M0 DoD verification
+### M1 DoD checklist
 
-- [x] `make dev` would serve `/health` returning `{"status":"ok"}` — confirmed by the TestClient smoke test and by importing `backend.app.main:app` directly; full Docker run not exercised but path is correct.
-- [x] `make check` passes locally (ruff check, ruff format --check, mypy --strict, pytest).
-- [x] `no-commit-to-branch` blocks a commit on `main` — verified once: empty commit on `main` exited 1 from the hook, `main` SHA unchanged.
-- [x] Repo tree matches the M0 portion of CLAUDE.md "Target layout"; later milestones (M1–M11) fill in `backend/{alembic,app/embeddings,app/llm,app/routers,...}`, `frontend/`, `eval/`, `infra/` per their own scopes. The CLAUDE.md "Target layout" section explicitly states "Update this section if structure changes."
+- [ ] `make migrate` applies cleanly on a fresh DB; pgvector extension enabled.
+- [ ] Models + repositories unit-tested against the CI Postgres service.
+- [ ] `audit_events` has no update/delete path in the repository layer.
 
 ---
 
@@ -30,8 +29,8 @@
 
 | # | Milestone | Branch | Status | PR | Notes |
 |---|-----------|--------|--------|----|-------|
-| M0 | Scaffolding, tooling, CI | `feat/m00-scaffold` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | started 2026-05-28; completed on branch 2026-05-28 |
-| M1 | Data model + migrations | `feat/m01-data-model` | ☐ | — | |
+| M0 | Scaffolding, tooling, CI | `feat/m00-scaffold` | ☑ merged | [#1](https://github.com/div0rce/sentinel/pull/1) | 2026-05-28 |
+| M1 | Data model + migrations | `feat/m01-data-model` | ◐ in progress | — | started 2026-05-28 |
 | M2 | Ingestion + embeddings | `feat/m02-ingestion` | ☐ | — | |
 | M3 | Retrieval + RAG | `feat/m03-rag-query` | ☐ | — | |
 | M4 | Structured extraction | `feat/m04-extraction` | ☐ | — | |
