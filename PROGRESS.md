@@ -9,11 +9,11 @@
 ## Current state
 
 - **Active milestone:** M2 — Ingestion + embedding pipeline
-- **Status:** complete on branch (started 2026-05-28, completed 2026-05-28); awaiting CI green and human squash-merge
+- **Status:** complete on branch (started 2026-05-28, completed 2026-05-28); Unicode provenance fix applied and awaiting CI green + human squash-merge
 - **Active branch:** `feat/m02-ingestion` (PR open — see Milestone status)
 - **Last completed milestone:** M1 — Data model + migrations (PR #2, merged 2026-05-28)
-- **`make check` passing:** yes locally on a freshly migrated DB (32 source files mypy-clean, 56 tests pass)
-- **Last action:** committed 9 small Conventional Commits covering deps, settings, embeddings, chunking, ingest pipeline + CLI, synthetic corpus + generator, tests, and CI; verified `make seed` end-to-end against Postgres.app (15 docs ingested with embeddings, re-run reports 15 skipped).
+- **`make check` passing:** yes locally on a freshly migrated DB (32 source files mypy-clean, 57 tests pass)
+- **Last action:** fixed PR #3 review finding: chunk text now preserves Unicode provenance by slicing original text from token offsets; verified chunking tests, ingest tests, `make check`, and offline `make seed` with `EMBEDDINGS_PROVIDER=fake`.
 - **Next action:** human squash-merges the M2 PR. After merge, run `/start-milestone 03` to begin M3 (retrieval + RAG).
 - **Blockers:** none.
 
@@ -26,7 +26,8 @@
   `ingested=0 skipped=15` (idempotency). CI re-verifies on every PR.
 - [x] **Chunking is deterministic; re-ingesting the same document creates no duplicates.** Tests:
   `test_chunking_is_deterministic_across_runs`, plus an overlap=0 invariant
-  (`sum(token_count) == len(encoder.encode(text))`); `test_re_ingesting_same_content_is_a_no_op`
+  (`sum(token_count) == len(encoder.encode(text))`) and a Unicode provenance regression asserting
+  lossy direct token-window decode is not used for stored chunk text; `test_re_ingesting_same_content_is_a_no_op`
   asserts the second `ingest_document` returns `status='skipped'` even from a different source path
   and adds zero new chunk rows.
 - [x] **No live embedding calls in CI (FakeEmbedder used).** Job-level `EMBEDDINGS_PROVIDER=fake`
@@ -41,7 +42,7 @@
 |---|-----------|--------|--------|----|-------|
 | M0 | Scaffolding, tooling, CI | `feat/m00-scaffold` | ☑ merged | [#1](https://github.com/div0rce/sentinel/pull/1) | 2026-05-28 |
 | M1 | Data model + migrations | `feat/m01-data-model` | ☑ merged | [#2](https://github.com/div0rce/sentinel/pull/2) | 2026-05-28 |
-| M2 | Ingestion + embeddings | `feat/m02-ingestion` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | 2026-05-28 |
+| M2 | Ingestion + embeddings | `feat/m02-ingestion` | ◐ complete on branch (PR open) | [#3](https://github.com/div0rce/sentinel/pull/3) | 2026-05-28 |
 | M3 | Retrieval + RAG | `feat/m03-rag-query` | ☐ | — | |
 | M4 | Structured extraction | `feat/m04-extraction` | ☐ | — | |
 | M5 | Guardrails | `feat/m05-guardrails` | ☐ | — | |
@@ -68,6 +69,7 @@ Status key: ☐ not started · ◐ in progress · ☑ merged
 - 2026-05-28 (M2) — `FakeEmbedder` produces deterministic SHA-256-stretched, L2-normalized vectors of `SCHEMA_EMBEDDING_DIM` length. CI runs offline with `EMBEDDINGS_PROVIDER=fake`, satisfying the "no live API calls in CI" constraint without skipping the embedding code path.
 - 2026-05-28 (M2) — Ingestion idempotency is keyed on `sha256(canonical_text)`. Whitespace is **not** normalized: a single character difference (including trailing newline) makes two distinct documents. This avoids the "is it the same?" ambiguity but means callers must canonicalize upstream if they want fuzzy idempotency.
 - 2026-05-28 (M2) — `OpenAIEmbedder` uses `httpx` directly rather than the OpenAI SDK; the embeddings endpoint is small and stable, and avoiding the SDK saves a transitive dependency. CI does not exercise this provider.
+- 2026-05-28 (M2) — Stored chunk text must preserve byte/text provenance by slicing the original source string from `decode_with_offsets()` token spans. The chunker must not store lossy arbitrary token-window decodes.
 
 ---
 

@@ -65,6 +65,26 @@ def test_chunking_overlap_zero_is_disjoint() -> None:
     assert sum(c.token_count for c in chunks) == expected_tokens
 
 
+def test_unicode_chunking_slices_source_text_without_lossy_replacement() -> None:
+    from backend.app.chunking import _encoder
+
+    text = "A café 😀 東京 e\u0301 end"
+    encoder = _encoder()
+    token_ids = encoder.encode(text)
+    direct_decoded_windows = [encoder.decode([token_id]) for token_id in token_ids]
+
+    assert any("\ufffd" in window for window in direct_decoded_windows)
+
+    first = chunk_text(text, chunk_size_tokens=1, chunk_overlap_tokens=0)
+    second = chunk_text(text, chunk_size_tokens=1, chunk_overlap_tokens=0)
+
+    assert first == second
+    assert len(first) == len(token_ids)
+    assert all(chunk.token_count == 1 for chunk in first)
+    assert all("\ufffd" not in chunk.text for chunk in first)
+    assert all(chunk.text in text for chunk in first)
+
+
 def test_chunking_rejects_overlap_ge_size() -> None:
     with pytest.raises(ValueError, match="strictly less"):
         chunk_text("hello", chunk_size_tokens=10, chunk_overlap_tokens=10)

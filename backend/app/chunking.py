@@ -46,7 +46,8 @@ def chunk_text(
     """Split ``text`` into overlapping token-windowed chunks.
 
     Returns chunks numbered from 0 in document order; each chunk's text is the
-    decoded token slice. Returns an empty list for empty input.
+    original source span covered by the token window. Returns an empty list for
+    empty input.
     """
     if chunk_size_tokens < 1:
         raise ValueError(f"chunk_size_tokens must be >= 1, got {chunk_size_tokens}")
@@ -66,14 +67,21 @@ def chunk_text(
     if not token_ids:
         return []
 
-    return list(_window(token_ids, chunk_size_tokens, chunk_overlap_tokens, encoder))
+    decoded_text, offsets = encoder.decode_with_offsets(token_ids)
+    if decoded_text != text:
+        raise ValueError("token offsets did not round-trip the source text")
+    if len(offsets) != len(token_ids):
+        raise ValueError("token offsets must contain one entry per token")
+
+    return list(_window(text, token_ids, offsets, chunk_size_tokens, chunk_overlap_tokens))
 
 
 def _window(
+    source_text: str,
     token_ids: list[int],
+    offsets: list[int],
     size: int,
     overlap: int,
-    encoder: tiktoken.Encoding,
 ) -> Iterator[ChunkOut]:
     step = size - overlap
     ord_index = 0
@@ -81,9 +89,10 @@ def _window(
     n = len(token_ids)
     while start < n:
         end = min(start + size, n)
-        window = token_ids[start:end]
-        text = encoder.decode(window)
-        yield ChunkOut(ord=ord_index, text=text, token_count=len(window))
+        start_char = offsets[start]
+        end_char = offsets[end] if end < n else len(source_text)
+        text = source_text[start_char:end_char]
+        yield ChunkOut(ord=ord_index, text=text, token_count=end - start)
         if end == n:
             return
         ord_index += 1
