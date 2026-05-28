@@ -5,9 +5,9 @@ Revises:
 Create Date: 2026-05-28
 
 Creates the ``vector`` extension first so the ``chunks.embedding`` column can be
-declared as ``Vector(1536)``. The dimension here must match
-``backend.app.models.EMBEDDING_DIM`` at the time this migration was authored;
-changing the dimension requires a new migration that ``ALTER COLUMN`` re-types it.
+declared as ``Vector(1536)``. The dimension here must match the schema-owned
+constant in ``backend.app.models``; changing the dimension requires a new migration
+that ``ALTER COLUMN`` re-types it.
 """
 
 from __future__ import annotations

@@ -15,9 +15,13 @@ This test enforces it two ways:
 from __future__ import annotations
 
 import inspect
+from typing import Any, cast
 
+import pytest
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.exc import UnmappedInstanceError
 
+from backend.app.models import AuditEvent
 from backend.app.repositories import audit_events as ae_repo
 
 # Names that would clearly violate append-only semantics. Add to this list as needed.
@@ -76,6 +80,33 @@ def test_append_persists_event_with_jsonb_round_trip(session: Session) -> None:
     assert fetched.before is None
     assert fetched.after == {"schema_name": "invoice", "fields": ["amount"]}
     assert fetched.request_id == "req-aaa"
+
+
+def test_get_returns_immutable_read_dto_not_mapped_orm_row(session: Session) -> None:
+    event = ae_repo.append(session, actor="system", action="audit.read", request_id="req-read")
+
+    fetched = ae_repo.get(session, event.id)
+
+    assert isinstance(fetched, ae_repo.AuditEventRead)
+    assert not isinstance(fetched, AuditEvent)
+
+
+def test_returned_audit_read_object_cannot_be_mutated(session: Session) -> None:
+    event = ae_repo.append(session, actor="system", action="audit.freeze")
+    fetched = ae_repo.get(session, event.id)
+    assert fetched is not None
+
+    with pytest.raises(AttributeError):
+        cast(Any, fetched).action = "tampered"
+
+
+def test_returned_audit_read_object_cannot_be_deleted_by_session(session: Session) -> None:
+    event = ae_repo.append(session, actor="system", action="audit.no-delete")
+    fetched = ae_repo.get(session, event.id)
+    assert fetched is not None
+
+    with pytest.raises(UnmappedInstanceError):
+        session.delete(fetched)
 
 
 def test_list_for_target_returns_events_oldest_first(session: Session) -> None:

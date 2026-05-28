@@ -37,8 +37,6 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-from backend.app.config import get_settings
-
 # A consistent constraint-naming convention keeps Alembic autogenerate diffs stable across
 # environments and Postgres versions. See https://alembic.sqlalchemy.org/en/latest/naming.html
 NAMING_CONVENTION = {
@@ -56,9 +54,9 @@ class Base(DeclarativeBase):
     metadata = MetaData(naming_convention=NAMING_CONVENTION)
 
 
-# Pin the embedding dimension at import time. Changing EMBEDDING_DIM later requires a
-# migration to alter the column type — the value baked into the M1 migration is canonical.
-EMBEDDING_DIM: int = get_settings().embedding_dim
+# The database schema owns the pgvector dimension. Runtime embedding provider settings must
+# validate against this value before inserts; changing it requires a migration.
+SCHEMA_EMBEDDING_DIM: int = 1536
 
 
 def _utcnow() -> datetime:
@@ -126,7 +124,9 @@ class Chunk(Base):
     token_count: Mapped[int] = mapped_column(nullable=False)
     # Populated by the ingestion pipeline in M2; nullable here so the column can hold rows
     # before embeddings are computed and so tests can insert chunks without a vector.
-    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
+    embedding: Mapped[list[float] | None] = mapped_column(
+        Vector(SCHEMA_EMBEDDING_DIM), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

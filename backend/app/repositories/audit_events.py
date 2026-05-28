@@ -11,12 +11,46 @@ the surface so the rule cannot be quietly broken later.
 
 from __future__ import annotations
 
-from typing import Any
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
+from datetime import datetime
+from types import MappingProxyType
+from typing import Any, cast
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.app.models import AuditEvent
+
+type JsonValue = str | int | float | bool | None | tuple[JsonValue, ...] | Mapping[str, JsonValue]
+type JsonObject = Mapping[str, JsonValue]
+
+
+class FrozenJsonList(tuple[JsonValue, ...]):
+    """Immutable JSON list that compares equal to the original list representation."""
+
+    def __new__(cls, items: Iterable[JsonValue]) -> FrozenJsonList:
+        return super().__new__(cls, items)
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, list):
+            return tuple(self) == tuple(other)
+        return super().__eq__(other)
+
+
+@dataclass(frozen=True, slots=True)
+class AuditEventRead:
+    """Immutable, detached read representation of an audit event."""
+
+    id: int
+    ts: datetime
+    actor: str
+    action: str
+    target_type: str | None
+    target_id: int | None
+    before: JsonObject | None
+    after: JsonObject | None
+    request_id: str | None
 
 
 def append(
@@ -49,7 +83,7 @@ def append(
     return event
 
 
-def list_for_target(session: Session, target_type: str, target_id: int) -> list[AuditEvent]:
+def list_for_target(session: Session, target_type: str, target_id: int) -> list[AuditEventRead]:
     """Return every event recorded against a given target, oldest first.
 
     Oldest-first ordering is what the M7 replay test consumes to reconstruct state.
@@ -59,19 +93,52 @@ def list_for_target(session: Session, target_type: str, target_id: int) -> list[
         .where(AuditEvent.target_type == target_type, AuditEvent.target_id == target_id)
         .order_by(AuditEvent.ts.asc(), AuditEvent.id.asc())
     )
-    return list(session.execute(stmt).scalars().all())
+    return [_to_read(event) for event in session.execute(stmt).scalars().all()]
 
 
-def list_by_request_id(session: Session, request_id: str) -> list[AuditEvent]:
+def list_by_request_id(session: Session, request_id: str) -> list[AuditEventRead]:
     """Return every event tagged with this request id, oldest first."""
     stmt = (
         select(AuditEvent)
         .where(AuditEvent.request_id == request_id)
         .order_by(AuditEvent.ts.asc(), AuditEvent.id.asc())
     )
-    return list(session.execute(stmt).scalars().all())
+    return [_to_read(event) for event in session.execute(stmt).scalars().all()]
 
 
-def get(session: Session, event_id: int) -> AuditEvent | None:
+def get(session: Session, event_id: int) -> AuditEventRead | None:
     """Look up a single event by id (read-only)."""
-    return session.get(AuditEvent, event_id)
+    event = session.get(AuditEvent, event_id)
+    if event is None:
+        return None
+    return _to_read(event)
+
+
+def _to_read(event: AuditEvent) -> AuditEventRead:
+    return AuditEventRead(
+        id=event.id,
+        ts=event.ts,
+        actor=event.actor,
+        action=event.action,
+        target_type=event.target_type,
+        target_id=event.target_id,
+        before=_freeze_json_object(event.before),
+        after=_freeze_json_object(event.after),
+        request_id=event.request_id,
+    )
+
+
+def _freeze_json_object(value: dict[str, Any] | None) -> JsonObject | None:
+    if value is None:
+        return None
+    return cast(JsonObject, _freeze_json(value))
+
+
+def _freeze_json(value: Any) -> JsonValue:
+    if isinstance(value, Mapping):
+        return MappingProxyType({str(k): _freeze_json(v) for k, v in value.items()})
+    if isinstance(value, list | tuple):
+        return FrozenJsonList(_freeze_json(item) for item in value)
+    if value is None or isinstance(value, str | int | float | bool):
+        return value
+    return cast(JsonValue, value)

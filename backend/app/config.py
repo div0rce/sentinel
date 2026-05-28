@@ -39,8 +39,8 @@ class Settings(BaseSettings):
         default=1536,
         ge=1,
         description=(
-            "Dimensionality of the pgvector column on `chunks.embedding`. "
-            "1536 matches OpenAI text-embedding-3-small; switch to 1024 for voyage-3-lite."
+            "Runtime embedding vector dimensionality. M2 insertion code must validate this "
+            "against the canonical database schema dimension before storing vectors."
         ),
     )
     embeddings_provider: Literal["openai", "voyage"] = "openai"
