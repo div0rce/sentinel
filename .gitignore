@@ -1,0 +1,35 @@
+# Secrets / env
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node / frontend
+node_modules/
+dist/
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+
+# Logs / OS
+*.log
+.DS_Store
+
+# Claude Code local-only settings (committed: settings.json)
+.claude/settings.local.json
+
+# Kiro CLI local-only state
+.kiro/
