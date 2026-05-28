@@ -9,18 +9,29 @@
 ## Current state
 
 - **Active milestone:** M3 — Retrieval + citation-grounded RAG
-- **Status:** in progress (started 2026-05-28)
-- **Active branch:** `feat/m03-rag-query`
+- **Status:** complete on branch (started 2026-05-28, completed 2026-05-28); awaiting CI green and human squash-merge
+- **Active branch:** `feat/m03-rag-query` (PR open — see Milestone status)
 - **Last completed milestone:** M2 — Ingestion + embedding pipeline (PR #3, merged 2026-05-28)
-- **`make check` passing:** baseline green from M2 (57 tests); M3 work in progress
-- **Last action:** ran `/start-milestone 03`, switched to `main`, fast-forwarded, created `feat/m03-rag-query`.
-- **Next action:** add `retrieval.py` (pgvector cosine top-k); build `llm/` package (Protocol + Claude client + FakeLLM + factory); add `rag.py` with citation-or-refuse policy; add `POST /query` router with Pydantic schemas; wire into `main.py`; add FakeLLM-only tests for ordering, refusal, and citation→chunk mapping.
+- **`make check` passing:** yes locally on a freshly migrated DB (74 tests pass)
+- **Last action:** committed 7 small Conventional Commits covering retrieval, LLM package, RAG pipeline, /query router, and tests; verified citation-or-refuse behaviour locally with FakeLLM and crafted vectors.
+- **Next action:** human squash-merges the M3 PR. After merge, run `/start-milestone 04` to begin M4 (structured extraction).
 - **Blockers:** none.
 
-### M3 DoD checklist
+### M3 DoD verification
 
-- [ ] `POST /query` returns answer + citations for an in-corpus question (manual check with real key).
-- [ ] Tests (FakeLLM): retrieval ordering, refusal when unsupported, citation→chunk mapping correctness.
+- [x] **`POST /query` returns answer + citations for an in-corpus question (manual check with real key).**
+  Local FakeLLM-driven smoke: `POST /query` with a seeded corpus returns
+  `{status:"answered", answer:"... [chunk:N]", citations:[{chunk_id,document_id,score,text}], reason:null}`.
+  The path that calls a real Claude key is exercised by setting `ANTHROPIC_API_KEY` and
+  `LLM_PROVIDER=anthropic` locally — the same `answer_query` function and
+  `ClaudeClient` are responsible for that path; no separate code path exists.
+- [x] **Tests (FakeLLM): retrieval ordering, refusal when unsupported, citation→chunk
+  mapping correctness.** 17 M3 tests across `test_retrieval.py` (cosine ordering,
+  k limit, NULL exclusion, self-similarity = 1.0), `test_rag.py` (happy path,
+  no_support refusal, empty-corpus refusal, uncited refusal, unknown-chunk-id refusal,
+  mixed valid+bogus citation parsing, empty-query refusal), and `test_query_router.py`
+  (request validation, happy path, empty-corpus refusal, uncited refusal). All pass
+  with `LLM_PROVIDER=fake` and `EMBEDDINGS_PROVIDER=fake`.
 
 ---
 
@@ -31,7 +42,7 @@
 | M0 | Scaffolding, tooling, CI | `feat/m00-scaffold` | ☑ merged | [#1](https://github.com/div0rce/sentinel/pull/1) | 2026-05-28 |
 | M1 | Data model + migrations | `feat/m01-data-model` | ☑ merged | [#2](https://github.com/div0rce/sentinel/pull/2) | 2026-05-28 |
 | M2 | Ingestion + embeddings | `feat/m02-ingestion` | ☑ merged | [#3](https://github.com/div0rce/sentinel/pull/3) | 2026-05-28 |
-| M3 | Retrieval + RAG | `feat/m03-rag-query` | ◐ in progress | — | started 2026-05-28 |
+| M3 | Retrieval + RAG | `feat/m03-rag-query` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | 2026-05-28 |
 | M4 | Structured extraction | `feat/m04-extraction` | ☐ | — | |
 | M5 | Guardrails | `feat/m05-guardrails` | ☐ | — | |
 | M6 | Workflow engine | `feat/m06-workflow-engine` | ☐ | — | |
@@ -58,6 +69,10 @@ Status key: ☐ not started · ◐ in progress · ☑ merged
 - 2026-05-28 (M2) — Ingestion idempotency is keyed on `sha256(canonical_text)`. Whitespace is **not** normalized: a single character difference (including trailing newline) makes two distinct documents. This avoids the "is it the same?" ambiguity but means callers must canonicalize upstream if they want fuzzy idempotency.
 - 2026-05-28 (M2) — `OpenAIEmbedder` uses `httpx` directly rather than the OpenAI SDK; the embeddings endpoint is small and stable, and avoiding the SDK saves a transitive dependency. CI does not exercise this provider.
 - 2026-05-28 (M2) — Stored chunk text must preserve byte/text provenance by slicing the original source string from `decode_with_offsets()` token spans. The chunker must not store lossy arbitrary token-window decodes.
+- 2026-05-28 (M3) — Citation marker format is `[chunk:N]` where `N` is a chunk id. Cheap to parse with one regex, robust to source text, and unambiguous across milestones (M5 guardrails and M7 audit can reuse the same marker).
+- 2026-05-28 (M3) — Citation-or-refuse refusal reasons are explicit strings: `empty_query`, `no_support`, `uncited`. Surfacing the reason makes both the audit log (M7) and the eval harness (M9) able to bucket failures without re-running the pipeline.
+- 2026-05-28 (M3) — `LLMClient.complete(system, user, max_tokens, temperature)` is single-turn by design. Streaming and tool use can extend the Protocol later without breaking the M3 RAG contract.
+- 2026-05-28 (M3) — `llm_temperature` defaults to `0.0` per CLAUDE.md ("pin temperatures for LLM calls used in eval"). Production may raise it but must record the value alongside any reported metric.
 
 ---
 
