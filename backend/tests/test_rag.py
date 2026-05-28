@@ -6,9 +6,8 @@ no live API calls happen. The DoD's three RAG-test items are covered here:
 * retrieval ordering — exercised end-to-end through the pipeline (the SQL-level
   ordering is independently tested in ``test_retrieval.py``).
 * refusal when unsupported — both no-chunks-above-threshold and uncited-LLM-response.
-* citation → chunk mapping correctness — only retrieved chunk ids that the LLM
-  cites become structured citations; bogus ids are dropped; the rest of the
-  retrieved list is preserved.
+* citation → chunk mapping correctness — retrieved chunk ids resolve to
+  structured citations, duplicates are deduplicated, and fabricated ids refuse.
 """
 
 from __future__ import annotations
@@ -169,7 +168,9 @@ def test_answer_query_refuses_when_llm_does_not_cite(session: Session) -> None:
     assert result.citations == []
 
 
-def test_answer_query_drops_citations_to_unknown_chunk_ids(session: Session) -> None:
+def test_answer_query_refuses_unknown_chunk_id_markers_as_invalid_citation(
+    session: Session,
+) -> None:
     _seed_aligned_chunks(session, hash_suffix="bg")
     settings = Settings(
         llm_provider="fake",
@@ -178,8 +179,8 @@ def test_answer_query_drops_citations_to_unknown_chunk_ids(session: Session) -> 
         retrieval_min_score=0.3,
     )
 
-    # The LLM cites a chunk id that is NOT in the retrieved set. With no other
-    # citations, the answer must be refused as 'uncited'.
+    # The LLM cites a chunk id that is NOT in the retrieved set. Citation markers
+    # exist, so this is a fabricated citation rather than an uncited answer.
     llm = FakeLLM(response="The answer relies on [chunk:99999999] which we did not retrieve.")
     result = answer_query(
         session,
@@ -189,12 +190,12 @@ def test_answer_query_drops_citations_to_unknown_chunk_ids(session: Session) -> 
         settings=settings,
     )
     assert result.status == "refused"
-    assert result.reason == "uncited"
+    assert result.reason == "invalid_citation"
+    assert result.answer == REFUSAL_TEXT
+    assert result.citations == []
 
 
-def test_answer_query_citation_to_chunk_mapping_is_correct(session: Session) -> None:
-    """Mixed valid + bogus citations: the bogus ones are dropped, the valid ones map
-    back to their retrieved chunks, deduplicated, in first-seen order."""
+def test_answer_query_refuses_mixed_valid_and_fabricated_citations(session: Session) -> None:
     _seed_aligned_chunks(session, hash_suffix="map", count=3)
     settings = Settings(
         llm_provider="fake",
@@ -203,18 +204,49 @@ def test_answer_query_citation_to_chunk_mapping_is_correct(session: Session) -> 
         retrieval_min_score=0.3,
     )
 
-    def cite_two_real_one_fake(system: str, user: str) -> str:
-        # Pull the first two retrieved chunk ids out of the user prompt.
+    def cite_real_and_fake(system: str, user: str) -> str:
+        ids = re.findall(r"\[chunk:(\d+)\]", user)
+        assert ids
+        first = ids[0]
+        return (
+            f"Claim A relies on [chunk:{first}]. "
+            f"Made-up id [chunk:88888888] must invalidate the answer."
+        )
+
+    llm = FakeLLM(response_factory=cite_real_and_fake)
+    result = answer_query(
+        session,
+        query="anything",
+        embedder=_AlignedQueryEmbedder(),
+        llm=llm,
+        settings=settings,
+    )
+    assert result.status == "refused"
+    assert result.reason == "invalid_citation"
+    assert result.answer == REFUSAL_TEXT
+    assert result.citations == []
+
+
+def test_answer_query_deduplicates_valid_citations(session: Session) -> None:
+    """Valid citations map back to retrieved chunks, deduplicated in first-seen order."""
+    _seed_aligned_chunks(session, hash_suffix="dedupe", count=3)
+    settings = Settings(
+        llm_provider="fake",
+        embeddings_provider="fake",
+        retrieval_top_k=3,
+        retrieval_min_score=0.3,
+    )
+
+    def cite_two_real_with_duplicate(system: str, user: str) -> str:
         ids = re.findall(r"\[chunk:(\d+)\]", user)
         assert len(ids) >= 2
         first, second = ids[0], ids[1]
         return (
             f"Claim A relies on [chunk:{first}]. Claim B relies on [chunk:{second}]. "
-            f"This trailing reference [chunk:{first}] should not duplicate the citation. "
-            f"Made-up id [chunk:88888888] should be dropped."
+            f"This trailing reference [chunk:{first}] should not duplicate the citation."
         )
 
-    llm = FakeLLM(response_factory=cite_two_real_one_fake)
+    llm = FakeLLM(response_factory=cite_two_real_with_duplicate)
     result = answer_query(
         session,
         query="anything",
@@ -223,7 +255,6 @@ def test_answer_query_citation_to_chunk_mapping_is_correct(session: Session) -> 
         settings=settings,
     )
     assert result.status == "answered"
-    # Two unique valid citations — first seen wins, dupes and unknown ids are dropped.
     assert len(result.citations) == 2
     cited_ids = [c.chunk_id for c in result.citations]
     assert len(set(cited_ids)) == 2

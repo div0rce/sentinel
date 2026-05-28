@@ -10,8 +10,9 @@ Refusal triggers:
 
 * ``no_support`` — top retrieval score is below
   :attr:`backend.app.config.Settings.retrieval_min_score`.
-* ``uncited`` — the LLM produced text but did not include any ``[chunk:N]`` citation
-  whose ``N`` matches a retrieved chunk id.
+* ``invalid_citation`` — the LLM cited at least one ``[chunk:N]`` id that was not
+  retrieved.
+* ``uncited`` — the LLM produced text but did not include any ``[chunk:N]`` marker.
 """
 
 from __future__ import annotations
@@ -71,6 +72,15 @@ class RagAnswer:
     retrieved: list[ChunkScore] = field(default_factory=list)
 
 
+@dataclass(frozen=True, slots=True)
+class CitationParseResult:
+    """Parsed citation markers resolved against the retrieved chunk set."""
+
+    citations: list[Citation]
+    invalid_chunk_ids: set[int]
+    has_markers: bool
+
+
 def _build_user_prompt(question: str, hits: list[ChunkScore]) -> str:
     parts: list[str] = ["Context:"]
     for hit in hits:
@@ -80,18 +90,20 @@ def _build_user_prompt(question: str, hits: list[ChunkScore]) -> str:
     return "\n".join(parts)
 
 
-def _parse_citations(text: str, retrieved: list[ChunkScore]) -> list[Citation]:
+def _parse_citations(text: str, retrieved: list[ChunkScore]) -> CitationParseResult:
     by_id: dict[int, ChunkScore] = {hit.chunk.id: hit for hit in retrieved}
     seen: set[int] = set()
+    invalid_chunk_ids: set[int] = set()
     citations: list[Citation] = []
+    has_markers = False
     for match in CITATION_PATTERN.finditer(text):
+        has_markers = True
         cid = int(match.group(1))
         if cid in seen:
             continue
         hit = by_id.get(cid)
         if hit is None:
-            # The model cited a chunk we did not supply. Drop it; the caller's
-            # uncited-answer check below will refuse if no valid citations remain.
+            invalid_chunk_ids.add(cid)
             continue
         seen.add(cid)
         citations.append(
@@ -102,7 +114,11 @@ def _parse_citations(text: str, retrieved: list[ChunkScore]) -> list[Citation]:
                 text=hit.chunk.text,
             )
         )
-    return citations
+    return CitationParseResult(
+        citations=citations,
+        invalid_chunk_ids=invalid_chunk_ids,
+        has_markers=has_markers,
+    )
 
 
 def answer_query(
@@ -145,8 +161,15 @@ def answer_query(
         max_tokens=settings.llm_max_tokens,
         temperature=settings.llm_temperature,
     )
-    citations = _parse_citations(response.text, hits)
-    if not citations:
+    citation_result = _parse_citations(response.text, hits)
+    if citation_result.invalid_chunk_ids:
+        return RagAnswer(
+            status="refused",
+            answer=REFUSAL_TEXT,
+            reason="invalid_citation",
+            retrieved=hits,
+        )
+    if not citation_result.has_markers or not citation_result.citations:
         return RagAnswer(
             status="refused",
             answer=REFUSAL_TEXT,
@@ -157,6 +180,6 @@ def answer_query(
     return RagAnswer(
         status="answered",
         answer=response.text,
-        citations=citations,
+        citations=citation_result.citations,
         retrieved=hits,
     )
