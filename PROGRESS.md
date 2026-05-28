@@ -8,31 +8,19 @@
 
 ## Current state
 
-- **Active milestone:** M2 — Ingestion + embedding pipeline
-- **Status:** complete on branch (started 2026-05-28, completed 2026-05-28); Unicode provenance fix applied and awaiting CI green + human squash-merge
-- **Active branch:** `feat/m02-ingestion` (PR open — see Milestone status)
-- **Last completed milestone:** M1 — Data model + migrations (PR #2, merged 2026-05-28)
-- **`make check` passing:** yes locally on a freshly migrated DB (32 source files mypy-clean, 57 tests pass)
-- **Last action:** fixed PR #3 review finding: chunk text now preserves Unicode provenance by slicing original text from token offsets; verified chunking tests, ingest tests, `make check`, and offline `make seed` with `EMBEDDINGS_PROVIDER=fake`.
-- **Next action:** human squash-merges the M2 PR. After merge, run `/start-milestone 03` to begin M3 (retrieval + RAG).
+- **Active milestone:** M3 — Retrieval + citation-grounded RAG
+- **Status:** in progress (started 2026-05-28)
+- **Active branch:** `feat/m03-rag-query`
+- **Last completed milestone:** M2 — Ingestion + embedding pipeline (PR #3, merged 2026-05-28)
+- **`make check` passing:** baseline green from M2 (57 tests); M3 work in progress
+- **Last action:** ran `/start-milestone 03`, switched to `main`, fast-forwarded, created `feat/m03-rag-query`.
+- **Next action:** add `retrieval.py` (pgvector cosine top-k); build `llm/` package (Protocol + Claude client + FakeLLM + factory); add `rag.py` with citation-or-refuse policy; add `POST /query` router with Pydantic schemas; wire into `main.py`; add FakeLLM-only tests for ordering, refusal, and citation→chunk mapping.
 - **Blockers:** none.
 
-### M2 DoD verification
+### M3 DoD checklist
 
-- [x] **`make seed` ingests the synthetic corpus; `chunks` populated with embeddings.** Verified
-  locally against Postgres.app on a dedicated `sentinel_m2_local` DB: 15 documents ingested (the
-  14 deterministic synthetic markdown files plus the corpus README), 15 chunks all with non-null
-  `vector(1536)` embeddings produced by `FakeEmbedder`. Re-running `make seed` reports
-  `ingested=0 skipped=15` (idempotency). CI re-verifies on every PR.
-- [x] **Chunking is deterministic; re-ingesting the same document creates no duplicates.** Tests:
-  `test_chunking_is_deterministic_across_runs`, plus an overlap=0 invariant
-  (`sum(token_count) == len(encoder.encode(text))`) and a Unicode provenance regression asserting
-  lossy direct token-window decode is not used for stored chunk text; `test_re_ingesting_same_content_is_a_no_op`
-  asserts the second `ingest_document` returns `status='skipped'` even from a different source path
-  and adds zero new chunk rows.
-- [x] **No live embedding calls in CI (FakeEmbedder used).** Job-level `EMBEDDINGS_PROVIDER=fake`
-  in `.github/workflows/ci.yml` plus tests' `Settings(embeddings_provider="fake")` calls. The
-  `OpenAIEmbedder` still exists for production but no test path constructs one with a real key.
+- [ ] `POST /query` returns answer + citations for an in-corpus question (manual check with real key).
+- [ ] Tests (FakeLLM): retrieval ordering, refusal when unsupported, citation→chunk mapping correctness.
 
 ---
 
@@ -42,8 +30,8 @@
 |---|-----------|--------|--------|----|-------|
 | M0 | Scaffolding, tooling, CI | `feat/m00-scaffold` | ☑ merged | [#1](https://github.com/div0rce/sentinel/pull/1) | 2026-05-28 |
 | M1 | Data model + migrations | `feat/m01-data-model` | ☑ merged | [#2](https://github.com/div0rce/sentinel/pull/2) | 2026-05-28 |
-| M2 | Ingestion + embeddings | `feat/m02-ingestion` | ◐ complete on branch (PR open) | [#3](https://github.com/div0rce/sentinel/pull/3) | 2026-05-28 |
-| M3 | Retrieval + RAG | `feat/m03-rag-query` | ☐ | — | |
+| M2 | Ingestion + embeddings | `feat/m02-ingestion` | ☑ merged | [#3](https://github.com/div0rce/sentinel/pull/3) | 2026-05-28 |
+| M3 | Retrieval + RAG | `feat/m03-rag-query` | ◐ in progress | — | started 2026-05-28 |
 | M4 | Structured extraction | `feat/m04-extraction` | ☐ | — | |
 | M5 | Guardrails | `feat/m05-guardrails` | ☐ | — | |
 | M6 | Workflow engine | `feat/m06-workflow-engine` | ☐ | — | |
