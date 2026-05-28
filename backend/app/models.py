@@ -191,7 +191,12 @@ class WorkflowItem(Base):
         index=True,
     )
     status: Mapped[WorkflowStatus] = mapped_column(
-        SAEnum(WorkflowStatus, name="workflow_status", native_enum=True),
+        SAEnum(
+            WorkflowStatus,
+            name="workflow_status",
+            native_enum=True,
+            values_callable=lambda enum_cls: [e.value for e in enum_cls],
+        ),
         nullable=False,
     )
     reason: Mapped[str | None] = mapped_column(Text, nullable=True)
