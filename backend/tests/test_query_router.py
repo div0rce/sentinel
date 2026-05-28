@@ -20,6 +20,7 @@ from backend.app.embeddings import EmbeddingProvider
 from backend.app.llm import FakeLLM, LLMClient
 from backend.app.main import app
 from backend.app.models import SCHEMA_EMBEDDING_DIM, Chunk, Document
+from backend.app.rag import REFUSAL_TEXT
 from backend.app.routers.query import _embedder_dependency, _llm_dependency
 
 
@@ -142,4 +143,23 @@ def test_post_query_refuses_when_llm_does_not_cite(client: TestClient, session: 
     body = resp.json()
     assert body["status"] == "refused"
     assert body["reason"] == "uncited"
+    assert body["citations"] == []
+
+
+def test_post_query_refuses_invalid_citation(client: TestClient, session: Session) -> None:
+    _seed_corpus(session)
+
+    def cite_real_and_fake(system: str, user: str) -> str:
+        match = re.search(r"\[chunk:(\d+)\]", user)
+        assert match is not None
+        return f"Supported claim [chunk:{match.group(1)}]. Fabricated claim [chunk:99999999]."
+
+    client.canned_llm.response_factory = cite_real_and_fake  # type: ignore[attr-defined]
+
+    resp = client.post("/query", json={"query": "Tell me something."})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "refused"
+    assert body["reason"] == "invalid_citation"
+    assert body["answer"] == REFUSAL_TEXT
     assert body["citations"] == []
