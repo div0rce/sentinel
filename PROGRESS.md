@@ -8,31 +8,30 @@
 
 ## Current state
 
-- **Active milestone:** M2 — Ingestion + embedding pipeline
-- **Status:** complete on branch (started 2026-05-28, completed 2026-05-28); Unicode provenance fix applied and awaiting CI green + human squash-merge
-- **Active branch:** `feat/m02-ingestion` (PR open — see Milestone status)
-- **Last completed milestone:** M1 — Data model + migrations (PR #2, merged 2026-05-28)
-- **`make check` passing:** yes locally on a freshly migrated DB (32 source files mypy-clean, 57 tests pass)
-- **Last action:** fixed PR #3 review finding: chunk text now preserves Unicode provenance by slicing original text from token offsets; verified chunking tests, ingest tests, `make check`, and offline `make seed` with `EMBEDDINGS_PROVIDER=fake`.
-- **Next action:** human squash-merges the M2 PR. After merge, run `/start-milestone 03` to begin M3 (retrieval + RAG).
+- **Active milestone:** M3 — Retrieval + citation-grounded RAG
+- **Status:** complete on branch (started 2026-05-28, completed 2026-05-28); fabricated-citation fix applied and awaiting CI green + human squash-merge
+- **Active branch:** `feat/m03-rag-query` (PR open — see Milestone status)
+- **Last completed milestone:** M2 — Ingestion + embedding pipeline (PR #3, merged 2026-05-28)
+- **`make check` passing:** yes locally on a freshly migrated DB (75 tests pass)
+- **Last action:** fixed PR #4 review finding: fabricated citation markers now trigger `invalid_citation` refusal, including mixed valid+invalid outputs; verified targeted RAG/router tests and `make check`.
+- **Next action:** human squash-merges the M3 PR. After merge, run `/start-milestone 04` to begin M4 (structured extraction).
 - **Blockers:** none.
 
-### M2 DoD verification
+### M3 DoD verification
 
-- [x] **`make seed` ingests the synthetic corpus; `chunks` populated with embeddings.** Verified
-  locally against Postgres.app on a dedicated `sentinel_m2_local` DB: 15 documents ingested (the
-  14 deterministic synthetic markdown files plus the corpus README), 15 chunks all with non-null
-  `vector(1536)` embeddings produced by `FakeEmbedder`. Re-running `make seed` reports
-  `ingested=0 skipped=15` (idempotency). CI re-verifies on every PR.
-- [x] **Chunking is deterministic; re-ingesting the same document creates no duplicates.** Tests:
-  `test_chunking_is_deterministic_across_runs`, plus an overlap=0 invariant
-  (`sum(token_count) == len(encoder.encode(text))`) and a Unicode provenance regression asserting
-  lossy direct token-window decode is not used for stored chunk text; `test_re_ingesting_same_content_is_a_no_op`
-  asserts the second `ingest_document` returns `status='skipped'` even from a different source path
-  and adds zero new chunk rows.
-- [x] **No live embedding calls in CI (FakeEmbedder used).** Job-level `EMBEDDINGS_PROVIDER=fake`
-  in `.github/workflows/ci.yml` plus tests' `Settings(embeddings_provider="fake")` calls. The
-  `OpenAIEmbedder` still exists for production but no test path constructs one with a real key.
+- [x] **`POST /query` returns answer + citations for an in-corpus question (manual check with real key).**
+  Local FakeLLM-driven smoke: `POST /query` with a seeded corpus returns
+  `{status:"answered", answer:"... [chunk:N]", citations:[{chunk_id,document_id,score,text}], reason:null}`.
+  The path that calls a real Claude key is exercised by setting `ANTHROPIC_API_KEY` and
+  `LLM_PROVIDER=anthropic` locally — the same `answer_query` function and
+  `ClaudeClient` are responsible for that path; no separate code path exists.
+- [x] **Tests (FakeLLM): retrieval ordering, refusal when unsupported, citation→chunk
+  mapping correctness.** 18 M3 tests across `test_retrieval.py` (cosine ordering,
+  k limit, NULL exclusion, self-similarity = 1.0), `test_rag.py` (happy path,
+  no_support refusal, empty-corpus refusal, uncited refusal, invalid-citation refusal,
+  valid citation dedupe, empty-query refusal), and `test_query_router.py`
+  (request validation, happy path, empty-corpus refusal, uncited refusal). All pass
+  with `LLM_PROVIDER=fake` and `EMBEDDINGS_PROVIDER=fake`.
 
 ---
 
@@ -42,8 +41,8 @@
 |---|-----------|--------|--------|----|-------|
 | M0 | Scaffolding, tooling, CI | `feat/m00-scaffold` | ☑ merged | [#1](https://github.com/div0rce/sentinel/pull/1) | 2026-05-28 |
 | M1 | Data model + migrations | `feat/m01-data-model` | ☑ merged | [#2](https://github.com/div0rce/sentinel/pull/2) | 2026-05-28 |
-| M2 | Ingestion + embeddings | `feat/m02-ingestion` | ◐ complete on branch (PR open) | [#3](https://github.com/div0rce/sentinel/pull/3) | 2026-05-28 |
-| M3 | Retrieval + RAG | `feat/m03-rag-query` | ☐ | — | |
+| M2 | Ingestion + embeddings | `feat/m02-ingestion` | ☑ merged | [#3](https://github.com/div0rce/sentinel/pull/3) | 2026-05-28 |
+| M3 | Retrieval + RAG | `feat/m03-rag-query` | ◐ complete on branch (PR open) | [#4](https://github.com/div0rce/sentinel/pull/4) | 2026-05-28 |
 | M4 | Structured extraction | `feat/m04-extraction` | ☐ | — | |
 | M5 | Guardrails | `feat/m05-guardrails` | ☐ | — | |
 | M6 | Workflow engine | `feat/m06-workflow-engine` | ☐ | — | |
@@ -70,6 +69,11 @@ Status key: ☐ not started · ◐ in progress · ☑ merged
 - 2026-05-28 (M2) — Ingestion idempotency is keyed on `sha256(canonical_text)`. Whitespace is **not** normalized: a single character difference (including trailing newline) makes two distinct documents. This avoids the "is it the same?" ambiguity but means callers must canonicalize upstream if they want fuzzy idempotency.
 - 2026-05-28 (M2) — `OpenAIEmbedder` uses `httpx` directly rather than the OpenAI SDK; the embeddings endpoint is small and stable, and avoiding the SDK saves a transitive dependency. CI does not exercise this provider.
 - 2026-05-28 (M2) — Stored chunk text must preserve byte/text provenance by slicing the original source string from `decode_with_offsets()` token spans. The chunker must not store lossy arbitrary token-window decodes.
+- 2026-05-28 (M3) — Citation marker format is `[chunk:N]` where `N` is a chunk id. Cheap to parse with one regex, robust to source text, and unambiguous across milestones (M5 guardrails and M7 audit can reuse the same marker).
+- 2026-05-28 (M3) — Citation-or-refuse refusal reasons are explicit strings: `empty_query`, `no_support`, `invalid_citation`, `uncited`. Surfacing the reason makes both the audit log (M7) and the eval harness (M9) able to bucket failures without re-running the pipeline.
+- 2026-05-28 (M3) — Fabricated citation markers trigger refusal with `invalid_citation`; mixed valid+invalid citation outputs are rejected rather than silently dropping invalid ids while returning an answer.
+- 2026-05-28 (M3) — `LLMClient.complete(system, user, max_tokens, temperature)` is single-turn by design. Streaming and tool use can extend the Protocol later without breaking the M3 RAG contract.
+- 2026-05-28 (M3) — `llm_temperature` defaults to `0.0` per CLAUDE.md ("pin temperatures for LLM calls used in eval"). Production may raise it but must record the value alongside any reported metric.
 
 ---
 

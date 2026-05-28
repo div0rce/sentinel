@@ -65,6 +65,29 @@ class Settings(BaseSettings):
         ),
     )
 
+    # --- LLM (consumed from M3 onward) --------------------------------------------
+
+    llm_provider: Literal["anthropic", "fake"] = "anthropic"
+    claude_model: str = Field(
+        default="claude-3-5-sonnet-20241022",
+        description="Anthropic model id used when llm_provider='anthropic'.",
+    )
+    llm_temperature: float = Field(
+        default=0.0,
+        ge=0.0,
+        le=1.0,
+        description=(
+            "Sampling temperature. Pinned to 0.0 by default for determinism in CI and "
+            "in the M9 evaluation harness; production may raise it but should record "
+            "the value alongside any reported metric."
+        ),
+    )
+    llm_max_tokens: int = Field(
+        default=1024,
+        ge=1,
+        description="Cap on completion length per LLM call.",
+    )
+
     # --- LLM / embedding API keys (unused in M1; tests and CI leave them blank) ---
 
     anthropic_api_key: str = ""
