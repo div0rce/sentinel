@@ -8,30 +8,19 @@
 
 ## Current state
 
-- **Active milestone:** M3 — Retrieval + citation-grounded RAG
-- **Status:** complete on branch (started 2026-05-28, completed 2026-05-28); fabricated-citation fix applied and awaiting CI green + human squash-merge
-- **Active branch:** `feat/m03-rag-query` (PR open — see Milestone status)
-- **Last completed milestone:** M2 — Ingestion + embedding pipeline (PR #3, merged 2026-05-28)
-- **`make check` passing:** yes locally on a freshly migrated DB (75 tests pass)
-- **Last action:** fixed PR #4 review finding: fabricated citation markers now trigger `invalid_citation` refusal, including mixed valid+invalid outputs; verified targeted RAG/router tests and `make check`.
-- **Next action:** human squash-merges the M3 PR. After merge, run `/start-milestone 04` to begin M4 (structured extraction).
+- **Active milestone:** M4 — Structured extraction
+- **Status:** in progress (started 2026-05-28)
+- **Active branch:** `feat/m04-extraction`
+- **Last completed milestone:** M3 — Retrieval + citation-grounded RAG (PR #4, merged 2026-05-28)
+- **`make check` passing:** baseline green from M3 (76 tests); M4 work in progress
+- **Last action:** ran `/start-milestone 04`, switched to `main`, fast-forwarded, created `feat/m04-extraction`.
+- **Next action:** add Pydantic `ExtractedField[T]` wrapper + schema registry + `invoice` schema; build `extract.py` orchestrator with strict JSON parse + schema/citation validation + persistence or deterministic failure; add `POST /extract` router wired into `main.py`; add FakeLLM tests for valid extraction, malformed JSON, schema-invalid output, and bogus `source_chunk_id`.
 - **Blockers:** none.
 
-### M3 DoD verification
+### M4 DoD checklist
 
-- [x] **`POST /query` returns answer + citations for an in-corpus question (manual check with real key).**
-  Local FakeLLM-driven smoke: `POST /query` with a seeded corpus returns
-  `{status:"answered", answer:"... [chunk:N]", citations:[{chunk_id,document_id,score,text}], reason:null}`.
-  The path that calls a real Claude key is exercised by setting `ANTHROPIC_API_KEY` and
-  `LLM_PROVIDER=anthropic` locally — the same `answer_query` function and
-  `ClaudeClient` are responsible for that path; no separate code path exists.
-- [x] **Tests (FakeLLM): retrieval ordering, refusal when unsupported, citation→chunk
-  mapping correctness.** 18 M3 tests across `test_retrieval.py` (cosine ordering,
-  k limit, NULL exclusion, self-similarity = 1.0), `test_rag.py` (happy path,
-  no_support refusal, empty-corpus refusal, uncited refusal, invalid-citation refusal,
-  valid citation dedupe, empty-query refusal), and `test_query_router.py`
-  (request validation, happy path, empty-corpus refusal, uncited refusal). All pass
-  with `LLM_PROVIDER=fake` and `EMBEDDINGS_PROVIDER=fake`.
+- [ ] Extractions validate against the schema; each field carries confidence + source chunk id.
+- [ ] Tests with FakeLLM fixtures cover valid extraction, malformed output handling, and persistence.
 
 ---
 
@@ -42,8 +31,8 @@
 | M0 | Scaffolding, tooling, CI | `feat/m00-scaffold` | ☑ merged | [#1](https://github.com/div0rce/sentinel/pull/1) | 2026-05-28 |
 | M1 | Data model + migrations | `feat/m01-data-model` | ☑ merged | [#2](https://github.com/div0rce/sentinel/pull/2) | 2026-05-28 |
 | M2 | Ingestion + embeddings | `feat/m02-ingestion` | ☑ merged | [#3](https://github.com/div0rce/sentinel/pull/3) | 2026-05-28 |
-| M3 | Retrieval + RAG | `feat/m03-rag-query` | ◐ complete on branch (PR open) | [#4](https://github.com/div0rce/sentinel/pull/4) | 2026-05-28 |
-| M4 | Structured extraction | `feat/m04-extraction` | ☐ | — | |
+| M3 | Retrieval + RAG | `feat/m03-rag-query` | ☑ merged | [#4](https://github.com/div0rce/sentinel/pull/4) | 2026-05-28 |
+| M4 | Structured extraction | `feat/m04-extraction` | ◐ in progress | — | started 2026-05-28 |
 | M5 | Guardrails | `feat/m05-guardrails` | ☐ | — | |
 | M6 | Workflow engine | `feat/m06-workflow-engine` | ☐ | — | |
 | M7 | Audit log + HITL | `feat/m07-audit-hitl` | ☐ | — | |
