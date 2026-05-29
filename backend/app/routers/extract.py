@@ -44,6 +44,8 @@ class ExtractResponse(BaseModel):
     payload: dict[str, Any] = Field(default_factory=dict)
     field_confidence: dict[str, float] = Field(default_factory=dict)
     field_citations: dict[str, list[int]] = Field(default_factory=dict)
+    requires_review: bool = False
+    low_confidence_fields: list[str] = Field(default_factory=list)
     reason: str | None = None
     detail: str | None = None
 
@@ -67,6 +69,8 @@ def _to_response(result: ExtractionResult) -> ExtractResponse:
         payload=result.payload,
         field_confidence=result.field_confidence,
         field_citations=result.field_citations,
+        requires_review=result.requires_review,
+        low_confidence_fields=result.low_confidence_fields,
         reason=result.reason,
         detail=result.detail,
     )
