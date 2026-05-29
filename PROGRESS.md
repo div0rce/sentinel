@@ -8,34 +8,35 @@
 
 ## Current state
 
-- **Active milestone:** M7 — Immutable audit log + human-in-the-loop approval
+- **Active milestone:** M8 — Frontend (dashboard + query + review)
 - **Status:** complete on branch (started 2026-05-29, completed 2026-05-29); awaiting CI green and human squash-merge
-- **Active branch:** `feat/m07-audit-hitl` (PR open — see Milestone status)
-- **Last completed milestone:** M6 — Workflow engine (PR #7, merged 2026-05-29)
-- **`make check` passing:** yes locally on a freshly migrated DB (163 tests pass)
-- **Last action:** committed 4 small Conventional Commits for M7 (PROGRESS housekeeping; audit.py + wiring + review router; tests; docs).
-- **Next action:** human squash-merges the M7 PR. After merge, run `/start-milestone 08` to begin M8 (frontend dashboard + query + review UI).
+- **Active branch:** `feat/m08-frontend` (PR open — see Milestone status)
+- **Last completed milestone:** M7 — Audit log + HITL (PR #8, merged 2026-05-29)
+- **`make check` passing:** yes locally on a freshly migrated DB (177 backend tests pass; 6 frontend Vitest tests pass; tsc lint clean; vite build succeeds)
+- **Last action:** committed the M8 cross-stack work in 9 small Conventional Commits (PROGRESS housekeeping; backend dashboard router + tests; frontend scaffold; API client; Query/Review views; Dashboard + 4 Recharts; smoke tests; CI integration).
+- **Next action:** human squash-merges the M8 PR. After merge, run `/start-milestone 09` to begin M9 (evaluation harness; produces résumé metrics).
 - **Blockers:** none.
 
-### M7 DoD verification
+### M8 DoD verification
 
-- [x] **Every model suggestion and human decision writes exactly one audit event
-  (tested).** `extract.extract_document` emits `extraction.created` after
-  persistence; `workflow.route_extraction` captures the prior status and emits
-  `workflow.routed` only when `apply_routing` actually changed state (so an
-  idempotent re-route emits zero events). The `/review` routes emit exactly one
-  `review.approved` / `review.rejected` per successful 200; failures (404, 409,
-  422) emit nothing. Tests pin the counts at every clause.
-- [x] **Approve/reject transitions are valid and audited.** `POST /review/{id}/
-  approve|reject` only accept items currently in `needs_review` (409 otherwise);
-  set the new status and emit an audit event with the human's `actor` and
-  optional `note`; return the new status and the persisted `audit_event_id`.
-- [x] **State-from-replay test:** current `workflow_items` state is
-  reconstructable from `audit_events`. `replay_workflow_state(session,
-  workflow_item_id)` walks every event for the target oldest-first and returns
-  the final `WorkflowStatus`. `test_state_from_replay_reconstructs_current_status`
-  drives a five-event lifecycle (insert → route transition → reject → reopen →
-  approve) and asserts the replayed status equals the persisted one.
+- [x] **All three views work against the running backend.** Query view posts to
+  `POST /query` and renders the answer + citations or the deliberate refusal text
+  + reason. Review view loads `GET /review`, renders the queue, and POSTs to
+  `/review/{id}/approve|reject` with a reviewer actor. Dashboard view fetches the
+  four `GET /dashboard/*` endpoints in parallel. Vite dev server proxies these
+  paths to FastAPI on `localhost:8000`. Each view handles loading/empty/error
+  states explicitly.
+- [x] **Dashboard renders the four KPI visuals from real API data.**
+  `VolumeChart`, `CategoriesChart`, `ConfidenceChart`, and `SlaChart` are small
+  Recharts components, each fed by a typed response from the API client. The
+  M1/M4/M7 schema is the single source of truth: backend Pydantic models →
+  TypeScript interfaces in `frontend/src/api.ts` → chart props.
+- [x] **At least a smoke/component test for the query and review flows.**
+  `frontend/src/views/__tests__/Query.test.tsx` (3 tests) covers the answered and
+  refused paths. `frontend/src/views/__tests__/Review.test.tsx` (3 tests) covers
+  the load → approve → optimistic-removal happy path plus the empty state. All
+  6 tests pass under Vitest + jsdom; HTTP is mocked via `vi.stubGlobal('fetch',
+  …)` so no live API calls in CI.
 
 ---
 
@@ -50,8 +51,8 @@
 | M4 | Structured extraction | `feat/m04-extraction` | ☑ merged | [#5](https://github.com/div0rce/sentinel/pull/5) | 2026-05-28 |
 | M5 | Guardrails | `feat/m05-guardrails` | ☑ merged | [#6](https://github.com/div0rce/sentinel/pull/6) | 2026-05-29 |
 | M6 | Workflow engine | `feat/m06-workflow-engine` | ☑ merged | [#7](https://github.com/div0rce/sentinel/pull/7) | 2026-05-29 |
-| M7 | Audit log + HITL | `feat/m07-audit-hitl` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | 2026-05-29 |
-| M8 | Frontend | `feat/m08-frontend` | ☐ | — | |
+| M7 | Audit log + HITL | `feat/m07-audit-hitl` | ☑ merged | [#8](https://github.com/div0rce/sentinel/pull/8) | 2026-05-29 |
+| M8 | Frontend | `feat/m08-frontend` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | 2026-05-29 |
 | M9 | Evaluation harness | `feat/m09-eval` | ☐ | — | |
 | M10 | Deploy (Docker/Terraform/CD) | `feat/m10-deploy` | ☐ | — | |
 | M11 | Docs + diagram + demo | `feat/m11-docs-demo` | ☐ | — | |
@@ -92,6 +93,9 @@ Status key: ☐ not started · ◐ in progress · ☑ merged
 - 2026-05-29 (M7) — The review router's transition surface is intentionally narrow: only `needs_review → auto_approved` and `needs_review → rejected`. Supervisor reversals (e.g., reopening a rejected item) live behind a future, separately audited action and are out of scope for M7.
 - 2026-05-29 (M7) — `workflow.routed` audit events are emitted from explicit persistence outcomes only: actual workflow-item creates or actual status changes. Losing an idempotent insert race returns the winning row and emits no duplicate audit event.
 - 2026-05-29 (M7) — Review decisions use a conditional compare-and-set transition from `needs_review`; failed conditional transitions return 409 and emit no audit event, preventing concurrent approve/reject requests from overwriting each other.
+- 2026-05-29 (M8) — Frontend stack: Vite 5 + React 18 + TypeScript 5 + Recharts 2 + Vitest 2 + React Testing Library. No CSS framework; minimal handwritten CSS. No state-management library. The TypeScript strict-mode profile (`noUncheckedIndexedAccess`, `noUnusedLocals`, `noUnusedParameters`) plus `tsc -b --noEmit` is the project's "lint" surface — fast, type-driven, and replaces eslint for now.
+- 2026-05-29 (M8) — Frontend response interfaces in `frontend/src/api.ts` mirror the backend Pydantic shapes one-to-one. The dashboard endpoints are deliberately Recharts-friendly (arrays of `{label,value}`-shaped records) so chart components consume server data without a transform layer. Renaming a backend field tightens both sides at compile time.
+- 2026-05-29 (M8) — CI splits `check` into two parallel jobs: `backend` (unchanged Postgres+pgvector + ruff/mypy/pytest/seed) and `frontend` (Node 20 + npm ci + tsc lint + vitest + vite build). Both must pass for the PR to be mergeable. No live API calls in either job; HTTP is mocked in vitest via `vi.stubGlobal('fetch', …)` and embeddings/LLM are `fake` in pytest.
 - 2026-05-29 (M6) — Workflow idempotent persistence uses a PostgreSQL `INSERT ... ON CONFLICT (idempotency_key) DO NOTHING RETURNING id` path, so concurrent workers racing after a stale read converge on the same row without surfacing `IntegrityError`.
 - 2026-05-28 (M4) — Every extraction-schema field is wrapped in `ExtractedField[T]` (PEP 695 generic Pydantic v2 model, `extra='forbid'`). Confidence + source chunk id are not optional add-ons; the LLM is required to emit them per field, and Pydantic validation rejects anything missing them. Avoids the "we'll add provenance later" trap.
 - 2026-05-28 (M4) — Schemas are registered in a flat `name → class` dict (`extraction_schemas/registry.py`). Adding a schema is a two-line edit; the orchestrator and `POST /extract` resolve by string name. M4 ships one schema (`invoice`); the M9 eval harness can extend the registry.
