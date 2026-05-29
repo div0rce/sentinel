@@ -9,23 +9,24 @@
 ## Current state
 
 - **Active milestone:** M11 — Docs, architecture diagram, demo
-- **Status:** in progress (started 2026-05-29)
-- **Active branch:** `feat/m11-docs-demo`
+- **Status:** complete on branch (started 2026-05-29, completed 2026-05-29); awaiting CI green and human squash-merge.
+- **Active branch:** `feat/m11-docs-demo` (PR open — see Milestone status)
 - **Last completed milestone:** M10 — Containerization + Terraform (AWS) + CD (PR [#14](https://github.com/div0rce/sentinel/pull/14), merged 2026-05-29 at `b18112d`)
-- **`make check` passing:** baseline green from M10 (195 backend pytest, 7 frontend Vitest)
-- **Last action:** ran `/start-milestone 11`. Switched to `main`, fast-forwarded to `b18112d`, branched `feat/m11-docs-demo`. Confirmed scope (docs only — no app or infra changes).
-- **Next action:** write `docs/architecture.md` (full architecture write-up + Mermaid diagram covering ingest/retrieval/RAG/extract/workflow/audit and the M10 deployment shape), render `docs/architecture.png`, write `docs/demo.md` (7-step script), write the top-level `README.md` (problem → architecture → features → quickstart → eval results → governance → limitations + synthetic-data disclaimer → roadmap → license), and add a `LICENSE` file (MIT).
+- **`make check` passing:** baseline green from M10 (195 backend pytest, 7 frontend Vitest, ruff/mypy clean). Docs-only PR; no code surface changed.
+- **Last action:** committed M11 in 5 small Conventional Commits — PROGRESS.md housekeeping, `docs(architecture)` (write-up + Mermaid source + rendered PNG), `docs(demo)` (7-step script), `docs(readme)` (portfolio entry-point), `docs: add MIT LICENSE`.
+- **Next action:** human squash-merges the M11 PR. After merge, capture screenshots from a real demo run, drop them into `docs/screenshots/`, and tackle the post-M11 backlog (real-provider eval numbers per [#13](https://github.com/div0rce/sentinel/issues/13), eval set expansion, multi-tenant + RBAC, OTel traces, Multi-AZ + private subnets).
 - **Blockers:** none.
 
-### M11 DoD checklist (from MILESTONES.md)
+### M11 DoD verification
 
-- [ ] README is complete and accurate; quickstart works from a clean clone.
-- [ ] Architecture diagram committed (source + image).
-- [ ] Limitations + synthetic-data disclaimer present and honest.
+- [x] **README is complete and accurate; quickstart works from a clean clone.** README.md ships with the full problem → architecture → features → quickstart → evaluation → governance → deployment → limitations → roadmap → license sections, embeds the rendered architecture PNG, and links every sub-doc. Quickstart is the same flow `docs/demo.md` covers in detail; the test suite (`make check`) was re-verified green on this branch.
+- [x] **Architecture diagram committed (source + image).** `docs/architecture.mmd` (76 lines, LR layout) is the single source. `docs/architecture.png` (3168×2234, rendered via `mmdc 11.15.0`) is the committed image. Render command is documented in `docs/architecture.md` and `README.md` so a reviewer can regenerate the PNG from source without guessing.
+- [x] **Limitations + synthetic-data disclaimer present and honest.** README "Limitations & synthetic-data disclaimer" lists synthetic data, small eval set, pending real-provider numbers (#13), demo-only deploy posture, self-reported confidence (routing signal, not calibrated probability), citation-validity in-context check. Top-of-file callout reinforces the disclaimer.
 
 ### Follow-ups tracked outside M11
 
 - **#13** — record real-provider eval numbers (M9 follow-up). Stays open until keys are wired and `make eval` is run for real.
+- **Backlog (MILESTONES.md):** multi-tenant + RBAC, eval set expansion, OTel traces, Multi-AZ + private subnets + ACM TLS + S3/DynamoDB Terraform backend.
 
 ---
 
@@ -44,7 +45,7 @@
 | M8 | Frontend | `feat/m08-frontend` | ☑ merged | [#9](https://github.com/div0rce/sentinel/pull/9) | 2026-05-29; perf follow-up [#11](https://github.com/div0rce/sentinel/pull/11) |
 | M9 | Evaluation harness | `feat/m09-eval` | ☑ merged | [#12](https://github.com/div0rce/sentinel/pull/12) | 2026-05-29; real-provider numbers tracked in [#13](https://github.com/div0rce/sentinel/issues/13) |
 | M10 | Deploy (Docker/Terraform/CD) | `feat/m10-deploy` | ☑ merged | [#14](https://github.com/div0rce/sentinel/pull/14) | 2026-05-29; code-only — apply remains a manual operator action |
-| M11 | Docs + diagram + demo | `feat/m11-docs-demo` | ◐ in progress | — | started 2026-05-29 |
+| M11 | Docs + diagram + demo | `feat/m11-docs-demo` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | 2026-05-29; docs-only |
 
 Status key: ☐ not started · ◐ in progress · ☑ merged
 
