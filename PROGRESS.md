@@ -8,35 +8,30 @@
 
 ## Current state
 
-- **Active milestone:** M8 — Frontend (dashboard + query + review)
-- **Status:** complete on branch (started 2026-05-29, completed 2026-05-29); awaiting CI green and human squash-merge
-- **Active branch:** `feat/m08-frontend` (PR open — see Milestone status)
-- **Last completed milestone:** M7 — Audit log + HITL (PR #8, merged 2026-05-29)
-- **`make check` passing:** yes locally on a freshly migrated DB (177 backend tests pass; 6 frontend Vitest tests pass; tsc lint clean; vite build succeeds)
-- **Last action:** committed the M8 cross-stack work in 9 small Conventional Commits (PROGRESS housekeeping; backend dashboard router + tests; frontend scaffold; API client; Query/Review views; Dashboard + 4 Recharts; smoke tests; CI integration).
-- **Next action:** human squash-merges the M8 PR. After merge, run `/start-milestone 09` to begin M9 (evaluation harness; produces résumé metrics).
+- **Active milestone:** M9 — Evaluation harness (résumé metrics)
+- **Status:** in progress (started 2026-05-29)
+- **Active branch:** `feat/m09-eval`
+- **Last completed milestone:** M8 — Frontend (PR #9, merged 2026-05-29) + perf follow-up (PR #11, merged 2026-05-29)
+- **`make check` passing:** baseline green from M8/perf (backend + frontend)
+- **Last action:** ran `/start-milestone 09`, switched to `main`, fast-forwarded, created `feat/m09-eval`. Verified current Sonnet model id against Anthropic docs: `claude-sonnet-4-6` (dateless, pinned snapshot per the 4.6 generation convention). Embeddings: `text-embedding-3-small` (1536-dim, matches schema). Temperature 0.
+- **Next action:** ship the eval harness package, hand-authored synthetic labels, asserted pytest harness tests, methodology-only PENDING `eval/RESULTS.md`, and `docs/evaluation.md`. Run with real keys before merge if available; otherwise merge on the harness contract and fill numbers in the immediate follow-up commit.
 - **Blockers:** none.
 
-### M8 DoD verification
+### M9 DoD checklist
 
-- [x] **All three views work against the running backend.** Query view posts to
-  `POST /query` and renders the answer + citations or the deliberate refusal text
-  + reason. Review view loads `GET /review`, renders the queue, and POSTs to
-  `/review/{id}/approve|reject` with a reviewer actor. Dashboard view fetches the
-  four `GET /dashboard/*` endpoints in parallel. Vite dev server proxies these
-  paths to FastAPI on `localhost:8000`. Each view handles loading/empty/error
-  states explicitly.
-- [x] **Dashboard renders the four KPI visuals from real API data.**
-  `VolumeChart`, `CategoriesChart`, `ConfidenceChart`, and `SlaChart` are small
-  Recharts components, each fed by a typed response from the API client. The
-  M1/M4/M7 schema is the single source of truth: backend Pydantic models →
-  TypeScript interfaces in `frontend/src/api.ts` → chart props.
-- [x] **At least a smoke/component test for the query and review flows.**
-  `frontend/src/views/__tests__/Query.test.tsx` (3 tests) covers the answered and
-  refused paths. `frontend/src/views/__tests__/Review.test.tsx` (3 tests) covers
-  the load → approve → optimistic-removal happy path plus the empty state. All
-  6 tests pass under Vitest + jsdom; HTTP is mocked via `vi.stubGlobal('fetch',
-  …)` so no live API calls in CI.
+- [ ] `make eval` runs end-to-end and writes `eval/RESULTS.md` with metrics, k, dataset size, and method.
+- [ ] Methodology is documented well enough to defend verbally in an interview.
+- [ ] Numbers are real (from this run). Record them in `PROGRESS.md` "Decision log" too.
+
+### M9 design lock-in (per pre-flight review)
+
+- **Metric set.**
+  - **Extraction:** normalized exact-match (trim + case-fold strings, dates → ISO, numeric tolerance where applicable). Report **micro + macro accuracy**; for any optional/nullable field, also report **per-field precision/recall** so "wrong value" and "missed field" don't conflate.
+  - **Retrieval:** **precision@k (headline) + recall@k + MRR**, averaged across labeled queries. Footnote precision@k denominator (capped below 1.0 when `#relevant < k`).
+  - **Citation-validity / lite faithfulness:** rate at which every cited chunk is in the retrieved set; rate at which the answer cites ≥1 labeled-relevant chunk. No LLM-judge, no ROUGE/BLEU, no end-to-end record metric in M9.
+- **Discipline:** under `EMBEDDINGS_PROVIDER=fake` or `LLM_PROVIDER=fake`, the harness prints `n/a (fake provider — non-quotable)` and **refuses to write a numerical result** for the affected metric. Quotable numbers come only from a real-key run, recorded with `provider + model id + temperature=0 + date`.
+- **What ships in PR.** Harness + labels + asserted pytest fixtures + methodology-only PENDING `eval/RESULTS.md` (metric definitions, dataset size, provider/model/temp/date slots, explicit "numbers pending real-provider run" marker, **no numbers in the file**). PR-body sample for reviewers, not the tree.
+- **Provider pair.** LLM `claude-sonnet-4-6` (verified against Anthropic docs 2026-05-29; pinned-by-design dateless id), embeddings `text-embedding-3-small` (1536-dim), temperature 0.
 
 ---
 
@@ -52,8 +47,8 @@
 | M5 | Guardrails | `feat/m05-guardrails` | ☑ merged | [#6](https://github.com/div0rce/sentinel/pull/6) | 2026-05-29 |
 | M6 | Workflow engine | `feat/m06-workflow-engine` | ☑ merged | [#7](https://github.com/div0rce/sentinel/pull/7) | 2026-05-29 |
 | M7 | Audit log + HITL | `feat/m07-audit-hitl` | ☑ merged | [#8](https://github.com/div0rce/sentinel/pull/8) | 2026-05-29 |
-| M8 | Frontend | `feat/m08-frontend` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | 2026-05-29 |
-| M9 | Evaluation harness | `feat/m09-eval` | ☐ | — | |
+| M8 | Frontend | `feat/m08-frontend` | ☑ merged | [#9](https://github.com/div0rce/sentinel/pull/9) | 2026-05-29; perf follow-up [#11](https://github.com/div0rce/sentinel/pull/11) |
+| M9 | Evaluation harness | `feat/m09-eval` | ◐ in progress | — | started 2026-05-29 |
 | M10 | Deploy (Docker/Terraform/CD) | `feat/m10-deploy` | ☐ | — | |
 | M11 | Docs + diagram + demo | `feat/m11-docs-demo` | ☐ | — | |
 
