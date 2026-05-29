@@ -235,15 +235,25 @@ Confirm the audit trail:
 
 ```bash
 psql postgres://sentinel:sentinel@localhost:5432/sentinel <<'SQL'
-\set item_id 1
-
-SELECT id, actor, action, before, after, request_id, ts
-FROM audit_events
-WHERE target_type = 'workflow_item'
-  AND target_id = :item_id
-ORDER BY id;
+WITH target_item AS (
+  SELECT wi.id
+  FROM workflow_items wi
+  JOIN extractions e ON e.id = wi.extraction_id
+  WHERE e.schema_name = 'invoice'
+  ORDER BY wi.updated_at DESC, wi.id DESC
+  LIMIT 1
+)
+SELECT ae.id, ae.actor, ae.action, ae.before, ae.after, ae.request_id, ae.ts
+FROM audit_events ae
+JOIN target_item ti
+  ON ae.target_type = 'workflow_item'
+ AND ae.target_id = ti.id
+ORDER BY ae.id;
 SQL
 ```
+
+The CTE finds the most recently updated invoice workflow item, so the query
+does not depend on a particular local id sequence.
 
 You should see two rows: one `system / workflow.routed` (from Step 5) and
 one `Reviewer / review.approved` (from this step). Replaying these events
