@@ -7,11 +7,13 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from backend.app.db import get_session
 from backend.app.main import app
 from backend.app.models import Chunk, Document, Extraction, WorkflowItem, WorkflowStatus
+from backend.app.routers import dashboard as dashboard_router
 
 
 @pytest.fixture
@@ -102,6 +104,26 @@ def test_volume_counts_extractions_per_day(client: TestClient, session: Session)
     points = {p["date"]: p["count"] for p in resp.json()["points"]}
     assert points[today.date().isoformat()] == 2
     assert points[yesterday.date().isoformat()] == 1
+
+
+def test_volume_groups_by_utc_day_independent_of_db_timezone(
+    client: TestClient, session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        dashboard_router, "_utcnow", lambda: datetime(2026, 5, 29, 12, 0, tzinfo=UTC)
+    )
+    session.execute(text("SET LOCAL TIME ZONE 'America/Los_Angeles'"))
+    _make_extraction(
+        session,
+        hash_suffix="vutc",
+        field_confidence={"a": 0.9},
+        created_at=datetime(2026, 5, 29, 1, 30, tzinfo=UTC),
+    )
+
+    resp = client.get("/dashboard/volume?days=1")
+
+    assert resp.status_code == 200
+    assert resp.json()["points"] == [{"date": "2026-05-29", "count": 1}]
 
 
 def test_volume_rejects_invalid_days(client: TestClient) -> None:

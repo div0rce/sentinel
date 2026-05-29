@@ -9,7 +9,7 @@ the API immediately tightens the typed API client and the chart component togeth
 from __future__ import annotations
 
 from collections import Counter
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -109,10 +109,11 @@ def get_volume(
 ) -> VolumeResponse:
     """Return one row per UTC day for the last ``days`` days, oldest first."""
     start = _utcnow().date() - timedelta(days=days - 1)
-    day = func.date_trunc("day", Extraction.created_at)
+    start_at = datetime.combine(start, time.min, tzinfo=UTC)
+    day = func.date_trunc("day", func.timezone("UTC", Extraction.created_at))
     stmt = (
         select(day.label("day"), func.count(Extraction.id).label("count"))
-        .where(Extraction.created_at >= start)
+        .where(Extraction.created_at >= start_at)
         .group_by("day")
         .order_by("day")
     )
