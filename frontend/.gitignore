@@ -3,5 +3,6 @@ dist/
 .vite/
 coverage/
 *.log
+*.tsbuildinfo
 .DS_Store
 .env.local
