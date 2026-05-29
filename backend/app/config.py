@@ -100,6 +100,18 @@ class Settings(BaseSettings):
     retrieval_min_score: float = Field(default=0.30, ge=0.0, le=1.0)
     confidence_review_threshold: float = Field(default=0.75, ge=0.0, le=1.0)
 
+    # --- Guardrails (consumed from M5 onward) -------------------------------------
+
+    pii_redaction_enabled: bool = Field(
+        default=True,
+        description=(
+            "Default-on. When True, deterministic PII regex redaction is applied "
+            "before storage (in the ingest pipeline) and before any LLM call (in the "
+            "RAG and extract prompt builders). Disable only for local debugging "
+            "against synthetic inputs you control."
+        ),
+    )
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
