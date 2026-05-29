@@ -9,18 +9,37 @@
 ## Current state
 
 - **Active milestone:** M4 — Structured extraction
-- **Status:** in progress (started 2026-05-28)
-- **Active branch:** `feat/m04-extraction`
+- **Status:** complete on branch (started 2026-05-28, completed 2026-05-28); awaiting CI green and human squash-merge
+- **Active branch:** `feat/m04-extraction` (PR open — see Milestone status)
 - **Last completed milestone:** M3 — Retrieval + citation-grounded RAG (PR #4, merged 2026-05-28)
-- **`make check` passing:** baseline green from M3 (76 tests); M4 work in progress
-- **Last action:** ran `/start-milestone 04`, switched to `main`, fast-forwarded, created `feat/m04-extraction`.
-- **Next action:** add Pydantic `ExtractedField[T]` wrapper + schema registry + `invoice` schema; build `extract.py` orchestrator with strict JSON parse + schema/citation validation + persistence or deterministic failure; add `POST /extract` router wired into `main.py`; add FakeLLM tests for valid extraction, malformed JSON, schema-invalid output, and bogus `source_chunk_id`.
+- **`make check` passing:** yes locally on a freshly migrated DB (96 tests pass)
+- **Last action:** committed 6 small Conventional Commits for M4 (PROGRESS housekeeping, schema layer, orchestrator, router, tests); verified citation-validation and schema-validation invariants with FakeLLM fixtures.
+- **Next action:** human squash-merges the M4 PR. After merge, run `/start-milestone 05` to begin M5 (guardrails).
 - **Blockers:** none.
 
-### M4 DoD checklist
+### M4 DoD verification
 
-- [ ] Extractions validate against the schema; each field carries confidence + source chunk id.
-- [ ] Tests with FakeLLM fixtures cover valid extraction, malformed output handling, and persistence.
+- [x] **Extractions validate against the schema; each field carries confidence + source chunk id.**
+  Every field in every registered schema is wrapped in `ExtractedField[T]` (Pydantic v2,
+  `extra='forbid'`, `confidence ∈ [0,1]`, `source_chunk_id ≥ 1`). The orchestrator
+  validates the LLM output against the registered schema and additionally verifies that
+  every `source_chunk_id` is in the supplied chunk set; fabricated ids are a hard
+  failure (`reason='invalid_citation'`). On success, the orchestrator unwraps the
+  validated model into three flat dicts (`payload`, `field_confidence`, `field_citations`)
+  before persisting.
+- [x] **Tests with FakeLLM fixtures cover valid extraction, malformed output handling, and
+  persistence.** 20 new M4 tests:
+  - **valid**: round-trip produces an extraction row whose payload, per-field confidence,
+    and per-field citations are recoverable from the repo; `model_name='fake-llm'` captured.
+  - **malformed**: `parse_error` on non-JSON, `parse_error` on JSON-but-not-an-object,
+    `schema_invalid` on missing required fields / out-of-range confidence / extra
+    forbidden keys, `invalid_citation` on a fabricated `source_chunk_id`,
+    `document_not_found` on unknown ids, `no_chunks` on empty docs, `unknown_schema` on
+    unregistered names.
+  - **persistence**: parametrized test verifies failures (parse_error, schema_invalid)
+    do NOT add an extraction row; only `status='ok'` writes.
+  - **router**: 422 validation, 200 happy path with full response shape, 200 with
+    `status='failed'` and a typed reason on every failure mode.
 
 ---
 
@@ -32,7 +51,7 @@
 | M1 | Data model + migrations | `feat/m01-data-model` | ☑ merged | [#2](https://github.com/div0rce/sentinel/pull/2) | 2026-05-28 |
 | M2 | Ingestion + embeddings | `feat/m02-ingestion` | ☑ merged | [#3](https://github.com/div0rce/sentinel/pull/3) | 2026-05-28 |
 | M3 | Retrieval + RAG | `feat/m03-rag-query` | ☑ merged | [#4](https://github.com/div0rce/sentinel/pull/4) | 2026-05-28 |
-| M4 | Structured extraction | `feat/m04-extraction` | ◐ in progress | — | started 2026-05-28 |
+| M4 | Structured extraction | `feat/m04-extraction` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | 2026-05-28 |
 | M5 | Guardrails | `feat/m05-guardrails` | ☐ | — | |
 | M6 | Workflow engine | `feat/m06-workflow-engine` | ☐ | — | |
 | M7 | Audit log + HITL | `feat/m07-audit-hitl` | ☐ | — | |
@@ -63,6 +82,10 @@ Status key: ☐ not started · ◐ in progress · ☑ merged
 - 2026-05-28 (M3) — Fabricated citation markers trigger refusal with `invalid_citation`; mixed valid+invalid citation outputs are rejected rather than silently dropping invalid ids while returning an answer.
 - 2026-05-28 (M3) — `LLMClient.complete(system, user, max_tokens, temperature)` is single-turn by design. Streaming and tool use can extend the Protocol later without breaking the M3 RAG contract.
 - 2026-05-28 (M3) — `llm_temperature` defaults to `0.0` per CLAUDE.md ("pin temperatures for LLM calls used in eval"). Production may raise it but must record the value alongside any reported metric.
+- 2026-05-28 (M4) — Every extraction-schema field is wrapped in `ExtractedField[T]` (PEP 695 generic Pydantic v2 model, `extra='forbid'`). Confidence + source chunk id are not optional add-ons; the LLM is required to emit them per field, and Pydantic validation rejects anything missing them. Avoids the "we'll add provenance later" trap.
+- 2026-05-28 (M4) — Schemas are registered in a flat `name → class` dict (`extraction_schemas/registry.py`). Adding a schema is a two-line edit; the orchestrator and `POST /extract` resolve by string name. M4 ships one schema (`invoice`); the M9 eval harness can extend the registry.
+- 2026-05-28 (M4) — Extraction failures (`parse_error`, `schema_invalid`, `invalid_citation`, `document_not_found`, `no_chunks`, `unknown_schema`) **never persist** an `extractions` row. Surfacing the typed reason to the caller is enough for M5 guardrails / M7 audit / M9 eval to bucket failures without polluting the success-only table.
+- 2026-05-28 (M4) — Citation validation reuses the M3 posture: a `source_chunk_id` not in the supplied chunk set is a hard failure (`invalid_citation`), not a silent drop. Same invariant the M3 RAG layer enforces with `[chunk:N]` markers.
 
 ---
 
