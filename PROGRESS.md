@@ -8,35 +8,20 @@
 
 ## Current state
 
-- **Active milestone:** M6 — Deterministic, idempotent workflow engine
-- **Status:** complete on branch (started 2026-05-28, completed 2026-05-29); awaiting CI green and human squash-merge
-- **Active branch:** `feat/m06-workflow-engine` (PR open — see Milestone status)
-- **Last completed milestone:** M5 — Guardrails (PR #6, merged 2026-05-29)
-- **`make check` passing:** yes locally on a freshly migrated DB (150 tests pass)
-- **Last action:** committed 4 small Conventional Commits for M6 (workflow engine module, 22 DoD tests, docs/workflow.md, PROGRESS housekeeping).
-- **Next action:** human squash-merges the M6 PR. After merge, run `/start-milestone 07` to begin M7 (audit log + HITL).
+- **Active milestone:** M7 — Immutable audit log + human-in-the-loop approval
+- **Status:** in progress (started 2026-05-29)
+- **Active branch:** `feat/m07-audit-hitl`
+- **Last completed milestone:** M6 — Workflow engine (PR #7, merged 2026-05-29)
+- **`make check` passing:** baseline green from M6 (150 tests); M7 work in progress
+- **Last action:** ran `/start-milestone 07`, switched to `main`, fast-forwarded, created `feat/m07-audit-hitl`.
+- **Next action:** add `backend/app/audit.py` semantic emitters (`emit_extraction_created`, `emit_workflow_routed`, `emit_review_decision`, `replay_workflow_state`); wire emission into `extract.extract_document` and `workflow.route_extraction` (only on actual state change); add `backend/app/routers/review.py` with `GET /review` queue and `POST /review/{id}/approve|reject` (human event bypasses `apply_routing`'s `IllegalTransition` guard); add the state-from-replay test; document in `docs/audit-and-review.md`.
 - **Blockers:** none.
 
-### M6 DoD verification
+### M7 DoD checklist
 
-- [x] **Determinism test:** identical inputs → identical routing across runs.
-  `route()` is a pure function; `test_workflow.py::test_route_is_a_pure_function_of_inputs`
-  asserts `route(x) == route(x) == route(equivalent_x)`. Insertion order of
-  `field_confidence` does not matter.
-- [x] **Idempotency test:** re-running routing produces no duplicate items / side
-  effects. `apply_routing` upserts by deterministic SHA-256 key
-  (`extraction_id|schema_name|routing_version`); the test verifies that three
-  consecutive calls produce **one** row (verified at the SQL level via
-  `SELECT * FROM workflow_items WHERE idempotency_key = …`), and that re-running
-  with a different decision updates the same row.
-- [x] **Replay test:** routing can be recomputed from stored inputs. `replay()`
-  reads the persisted `extractions` row and runs `route()` against it. Tests
-  cover happy path, low-confidence path, and unknown-id `KeyError`.
-- [x] **Invariants enforced and tested.** `_check_invariants` raises on
-  `AUTO_APPROVED + low confidence` and on `non-REJECTED + invalid_citation flag`.
-  `apply_routing` refuses `REJECTED → AUTO_APPROVED` with `IllegalTransition`
-  (M7's audit-driven `POST /review/{id}/approve` is the only legitimate path);
-  `REJECTED → NEEDS_REVIEW` is allowed (documented in `docs/workflow.md`).
+- [ ] Every model suggestion and human decision writes exactly one audit event (tested).
+- [ ] Approve/reject transitions are valid and audited.
+- [ ] **State-from-replay test:** current `workflow_items` state is reconstructable from `audit_events`.
 
 ---
 
@@ -50,8 +35,8 @@
 | M3 | Retrieval + RAG | `feat/m03-rag-query` | ☑ merged | [#4](https://github.com/div0rce/sentinel/pull/4) | 2026-05-28 |
 | M4 | Structured extraction | `feat/m04-extraction` | ☑ merged | [#5](https://github.com/div0rce/sentinel/pull/5) | 2026-05-28 |
 | M5 | Guardrails | `feat/m05-guardrails` | ☑ merged | [#6](https://github.com/div0rce/sentinel/pull/6) | 2026-05-29 |
-| M6 | Workflow engine | `feat/m06-workflow-engine` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | 2026-05-28 → 2026-05-29 |
-| M7 | Audit log + HITL | `feat/m07-audit-hitl` | ☐ | — | |
+| M6 | Workflow engine | `feat/m06-workflow-engine` | ☑ merged | [#7](https://github.com/div0rce/sentinel/pull/7) | 2026-05-29 |
+| M7 | Audit log + HITL | `feat/m07-audit-hitl` | ◐ in progress | — | started 2026-05-29 |
 | M8 | Frontend | `feat/m08-frontend` | ☐ | — | |
 | M9 | Evaluation harness | `feat/m09-eval` | ☐ | — | |
 | M10 | Deploy (Docker/Terraform/CD) | `feat/m10-deploy` | ☐ | — | |
