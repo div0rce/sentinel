@@ -8,38 +8,20 @@
 
 ## Current state
 
-- **Active milestone:** M4 — Structured extraction
-- **Status:** complete on branch (started 2026-05-28, completed 2026-05-28); invoice date validation fix applied and awaiting CI green + human squash-merge
-- **Active branch:** `feat/m04-extraction` (PR open — see Milestone status)
-- **Last completed milestone:** M3 — Retrieval + citation-grounded RAG (PR #4, merged 2026-05-28)
-- **`make check` passing:** yes locally on a freshly migrated DB (99 tests pass)
-- **Last action:** fixed PR review finding: invoice `issue_date` is now constrained to real `YYYY-MM-DD` ISO date strings in validation and generated JSON Schema; verified focused extraction tests.
-- **Next action:** human squash-merges the M4 PR. After merge, run `/start-milestone 05` to begin M5 (guardrails).
+- **Active milestone:** M5 — Guardrails
+- **Status:** in progress (started 2026-05-28)
+- **Active branch:** `feat/m05-guardrails`
+- **Last completed milestone:** M4 — Structured extraction (PR #5, merged 2026-05-28)
+- **`make check` passing:** baseline green from M4 (99 tests); M5 work in progress
+- **Last action:** ran `/start-milestone 05`, switched to `main`, fast-forwarded, created `feat/m05-guardrails`.
+- **Next action:** add `backend/app/guardrails.py` with PII redaction registry and confidence-gating helpers; toggle `pii_redaction_enabled` in Settings; wire redaction into `ingest.py` (pre-storage) and into the pre-LLM prompt builders in `rag.py` and `extract.py`; surface `requires_review` and `low_confidence_fields` from `extract_document` and `POST /extract`; add `docs/guardrails.md`; add tests.
 - **Blockers:** none.
 
-### M4 DoD verification
+### M5 DoD checklist
 
-- [x] **Extractions validate against the schema; each field carries confidence + source chunk id.**
-  Every field in every registered schema is wrapped in `ExtractedField[T]` (Pydantic v2,
-  `extra='forbid'`, `confidence ∈ [0,1]`, `source_chunk_id ≥ 1`). The orchestrator
-  validates the LLM output against the registered schema and additionally verifies that
-  every `source_chunk_id` is in the supplied chunk set; fabricated ids are a hard
-  failure (`reason='invalid_citation'`). On success, the orchestrator unwraps the
-  validated model into three flat dicts (`payload`, `field_confidence`, `field_citations`)
-  before persisting.
-- [x] **Tests with FakeLLM fixtures cover valid extraction, malformed output handling, and
-  persistence.** 23 new M4 tests:
-  - **valid**: round-trip produces an extraction row whose payload, per-field confidence,
-    and per-field citations are recoverable from the repo; `model_name='fake-llm'` captured.
-  - **malformed**: `parse_error` on non-JSON, `parse_error` on JSON-but-not-an-object,
-    `schema_invalid` on missing required fields / out-of-range confidence / extra
-    forbidden keys / invalid invoice issue-date shape, `invalid_citation` on a fabricated `source_chunk_id`,
-    `document_not_found` on unknown ids, `no_chunks` on empty docs, `unknown_schema` on
-    unregistered names.
-  - **persistence**: parametrized test verifies failures (parse_error, schema_invalid)
-    do NOT add an extraction row; only `status='ok'` writes.
-  - **router**: 422 validation, 200 happy path with full response shape, 200 with
-    `status='failed'` and a typed reason on every failure mode.
+- [ ] PII patterns redacted before any LLM call and before storage (tested).
+- [ ] Low-confidence extractions are flagged for review, never auto-applied (tested).
+- [ ] Guardrail behavior is config-driven and documented in `docs/`.
 
 ---
 
@@ -51,8 +33,8 @@
 | M1 | Data model + migrations | `feat/m01-data-model` | ☑ merged | [#2](https://github.com/div0rce/sentinel/pull/2) | 2026-05-28 |
 | M2 | Ingestion + embeddings | `feat/m02-ingestion` | ☑ merged | [#3](https://github.com/div0rce/sentinel/pull/3) | 2026-05-28 |
 | M3 | Retrieval + RAG | `feat/m03-rag-query` | ☑ merged | [#4](https://github.com/div0rce/sentinel/pull/4) | 2026-05-28 |
-| M4 | Structured extraction | `feat/m04-extraction` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | 2026-05-28 |
-| M5 | Guardrails | `feat/m05-guardrails` | ☐ | — | |
+| M4 | Structured extraction | `feat/m04-extraction` | ☑ merged | [#5](https://github.com/div0rce/sentinel/pull/5) | 2026-05-28 |
+| M5 | Guardrails | `feat/m05-guardrails` | ◐ in progress | — | started 2026-05-28 |
 | M6 | Workflow engine | `feat/m06-workflow-engine` | ☐ | — | |
 | M7 | Audit log + HITL | `feat/m07-audit-hitl` | ☐ | — | |
 | M8 | Frontend | `feat/m08-frontend` | ☐ | — | |
