@@ -14,6 +14,8 @@ COPY . .
 
 # Vite emits ./dist with hashed asset names. tsc -b runs as part of `npm run
 # build` and fails the build on any type error.
+ARG VITE_API_BASE=/api
+ENV VITE_API_BASE=${VITE_API_BASE}
 RUN npm run build
 
 # ---------- runtime ----------
@@ -27,8 +29,16 @@ ENV BACKEND_URL=http://backend:8000
 COPY nginx.conf.template /etc/nginx/templates/default.conf.template
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# nginx official image runs as nginx (non-root) by default since 1.25.
-EXPOSE 80
+RUN set -eux; \
+    mkdir -p /var/cache/nginx/client_temp /var/cache/nginx/proxy_temp \
+        /var/cache/nginx/fastcgi_temp /var/cache/nginx/uwsgi_temp \
+        /var/cache/nginx/scgi_temp; \
+    touch /run/nginx.pid; \
+    chown -R nginx:nginx /usr/share/nginx/html /etc/nginx/conf.d \
+        /var/cache/nginx /var/log/nginx /var/run /run/nginx.pid
+
+EXPOSE 8080
+USER nginx
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget --quiet --spider http://127.0.0.1/ || exit 1
+    CMD wget --quiet --spider http://127.0.0.1:8080/ || exit 1

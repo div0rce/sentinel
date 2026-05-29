@@ -1,9 +1,8 @@
-# ECS cluster, ALB with path-prefix routing to backend/frontend services, and
-# two Fargate task definitions. The frontend serves the SPA over nginx and
-# reverse-proxies same-origin API paths to the backend service via service
-# discovery; the ALB also has a path-prefix rule that routes
-# /query|/extract|/review|/dashboard|/health straight to the backend so a
-# curl from the public DNS name reaches the API directly without the nginx hop.
+# ECS cluster, ALB, and two Fargate task definitions. The frontend serves the
+# SPA over nginx on port 8080 and reverse-proxies /api/* to the backend service
+# via service discovery. The ALB default target is the frontend so /, /review,
+# and /dashboard all serve the React SPA. Only backend health checks bypass
+# nginx and route straight to FastAPI.
 
 # --- log groups ---------------------------------------------------------------
 
@@ -111,7 +110,7 @@ resource "aws_lb" "this" {
 
 resource "aws_lb_target_group" "frontend" {
   name        = "${var.project_name}-frontend"
-  port        = 80
+  port        = 8080
   protocol    = "HTTP"
   vpc_id      = var.vpc_id
   target_type = "ip"
@@ -154,10 +153,9 @@ resource "aws_lb_listener" "http" {
   }
 }
 
-# Path-prefix rule sends API traffic straight to the backend target group so a
-# curl against http://<alb-dns>/health works without the nginx hop. The
-# frontend's same-origin proxy (nginx.conf.template) is what serves real users
-# inside the SPA; this rule is for tooling and the demo.
+# Backend health checks stay backend-specific. API calls use the ALB default
+# frontend target and are proxied by nginx under /api/*, which lets nginx strip
+# the deployment namespace before FastAPI sees the request path.
 resource "aws_lb_listener_rule" "backend" {
   listener_arn = aws_lb_listener.http.arn
   priority     = 100
@@ -169,7 +167,7 @@ resource "aws_lb_listener_rule" "backend" {
 
   condition {
     path_pattern {
-      values = ["/query*", "/extract*", "/review*", "/dashboard*", "/health"]
+      values = ["/health"]
     }
   }
 }
@@ -243,7 +241,7 @@ locals {
       image     = var.frontend_image
       essential = true
       portMappings = [
-        { containerPort = 80, protocol = "tcp" }
+        { containerPort = 8080, protocol = "tcp" }
       ]
       environment = [
         # The nginx config template substitutes ${BACKEND_URL} on container
@@ -332,7 +330,7 @@ resource "aws_ecs_service" "frontend" {
   load_balancer {
     target_group_arn = aws_lb_target_group.frontend.arn
     container_name   = "frontend"
-    container_port   = 80
+    container_port   = 8080
   }
 
   deployment_minimum_healthy_percent = 50

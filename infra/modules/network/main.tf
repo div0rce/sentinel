@@ -52,8 +52,9 @@ resource "aws_route_table_association" "public" {
 # SGs encode the expected reachability graph:
 #
 #   internet ──→ alb_sg (80, 443)
-#   alb_sg   ──→ frontend_sg (80)         (ALB to nginx)
-#   alb_sg   ──→ backend_sg  (8000)       (ALB to FastAPI for path-prefix routes)
+#   alb_sg   ──→ frontend_sg (8080)       (ALB to nginx)
+#   alb_sg   ──→ backend_sg  (8000)       (ALB to FastAPI /health)
+#   frontend_sg ─→ backend_sg (8000)      (nginx /api proxy to FastAPI)
 #   backend_sg ──→ rds_sg    (5432)       (FastAPI to Postgres)
 #
 # Egress is intentionally open: tasks need to reach ECR, Anthropic, OpenAI, and
@@ -96,8 +97,8 @@ resource "aws_security_group" "frontend" {
   vpc_id      = aws_vpc.this.id
 
   ingress {
-    from_port       = 80
-    to_port         = 80
+    from_port       = 8080
+    to_port         = 8080
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
     description     = "ALB → nginx."
@@ -115,7 +116,7 @@ resource "aws_security_group" "frontend" {
 
 resource "aws_security_group" "backend" {
   name        = "${var.project_name}-backend"
-  description = "Backend Fargate task. Reachable from the ALB only."
+  description = "Backend Fargate task. Reachable from the ALB and frontend task only."
   vpc_id      = aws_vpc.this.id
 
   ingress {
@@ -123,7 +124,15 @@ resource "aws_security_group" "backend" {
     to_port         = 8000
     protocol        = "tcp"
     security_groups = [aws_security_group.alb.id]
-    description     = "ALB → FastAPI."
+    description     = "ALB → FastAPI /health."
+  }
+
+  ingress {
+    from_port       = 8000
+    to_port         = 8000
+    protocol        = "tcp"
+    security_groups = [aws_security_group.frontend.id]
+    description     = "nginx /api proxy → FastAPI."
   }
 
   egress {

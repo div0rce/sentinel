@@ -42,14 +42,24 @@ public subnets as the tasks, the security group prevents internet reach.
 ### Reachability graph (encoded in security groups)
 
 ```
-internet ──→ alb_sg          (80, 443)
-alb_sg   ──→ frontend_sg     (80)         ALB → nginx
-alb_sg   ──→ backend_sg      (8000)       ALB path-prefix → FastAPI
-backend_sg ──→ rds_sg        (5432)       FastAPI → Postgres
+internet ──→ alb_sg           (80, 443)
+alb_sg   ──→ frontend_sg      (8080)      ALB → nginx
+alb_sg   ──→ backend_sg       (8000)      ALB → FastAPI /health
+frontend_sg ─→ backend_sg     (8000)      nginx /api proxy → FastAPI
+backend_sg ──→ rds_sg         (5432)      FastAPI → Postgres
 ```
 
 Egress is open on the task SGs (so containers can reach ECR / Anthropic /
 OpenAI / CloudWatch). RDS has no egress.
+
+### Public routing
+
+The ALB default target group is the frontend service, so `/`, `/review`, and
+`/dashboard` all serve the React SPA even on hard refreshes or shared links.
+The deployed frontend is built with `VITE_API_BASE=/api`; nginx proxies only
+`/api/*` to FastAPI and strips the `/api` prefix before forwarding. `/health`
+is the only public path routed directly from the ALB to the backend target
+group so backend health checks remain backend-specific.
 
 ### Single-AZ everywhere it matters
 
