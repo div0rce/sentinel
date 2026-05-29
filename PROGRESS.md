@@ -8,34 +8,20 @@
 
 ## Current state
 
-- **Active milestone:** M7 — Immutable audit log + human-in-the-loop approval
-- **Status:** complete on branch (started 2026-05-29, completed 2026-05-29); awaiting CI green and human squash-merge
-- **Active branch:** `feat/m07-audit-hitl` (PR open — see Milestone status)
-- **Last completed milestone:** M6 — Workflow engine (PR #7, merged 2026-05-29)
-- **`make check` passing:** yes locally on a freshly migrated DB (163 tests pass)
-- **Last action:** committed 4 small Conventional Commits for M7 (PROGRESS housekeeping; audit.py + wiring + review router; tests; docs).
-- **Next action:** human squash-merges the M7 PR. After merge, run `/start-milestone 08` to begin M8 (frontend dashboard + query + review UI).
+- **Active milestone:** M8 — Frontend (dashboard + query + review)
+- **Status:** in progress (started 2026-05-29)
+- **Active branch:** `feat/m08-frontend`
+- **Last completed milestone:** M7 — Audit log + HITL (PR #8, merged 2026-05-29)
+- **`make check` passing:** baseline green from M7 (163 tests); M8 work in progress
+- **Last action:** ran `/start-milestone 08`, switched to `main`, fast-forwarded, created `feat/m08-frontend`.
+- **Next action:** add `backend/app/routers/dashboard.py` with `GET /dashboard/{volume,categories,confidence,sla}` + tests; scaffold `frontend/` (Vite + React 18 + TS + Recharts + Vitest); typed API client; Query / Review / Dashboard views with loading-empty-error states; smoke component tests for Query and Review; extend CI with a frontend job.
 - **Blockers:** none.
 
-### M7 DoD verification
+### M8 DoD checklist
 
-- [x] **Every model suggestion and human decision writes exactly one audit event
-  (tested).** `extract.extract_document` emits `extraction.created` after
-  persistence; `workflow.route_extraction` captures the prior status and emits
-  `workflow.routed` only when `apply_routing` actually changed state (so an
-  idempotent re-route emits zero events). The `/review` routes emit exactly one
-  `review.approved` / `review.rejected` per successful 200; failures (404, 409,
-  422) emit nothing. Tests pin the counts at every clause.
-- [x] **Approve/reject transitions are valid and audited.** `POST /review/{id}/
-  approve|reject` only accept items currently in `needs_review` (409 otherwise);
-  set the new status and emit an audit event with the human's `actor` and
-  optional `note`; return the new status and the persisted `audit_event_id`.
-- [x] **State-from-replay test:** current `workflow_items` state is
-  reconstructable from `audit_events`. `replay_workflow_state(session,
-  workflow_item_id)` walks every event for the target oldest-first and returns
-  the final `WorkflowStatus`. `test_state_from_replay_reconstructs_current_status`
-  drives a five-event lifecycle (insert → route transition → reject → reopen →
-  approve) and asserts the replayed status equals the persisted one.
+- [ ] All three views work against the running backend.
+- [ ] Dashboard renders the four KPI visuals from real API data.
+- [ ] At least a smoke/component test for the query and review flows.
 
 ---
 
@@ -50,8 +36,8 @@
 | M4 | Structured extraction | `feat/m04-extraction` | ☑ merged | [#5](https://github.com/div0rce/sentinel/pull/5) | 2026-05-28 |
 | M5 | Guardrails | `feat/m05-guardrails` | ☑ merged | [#6](https://github.com/div0rce/sentinel/pull/6) | 2026-05-29 |
 | M6 | Workflow engine | `feat/m06-workflow-engine` | ☑ merged | [#7](https://github.com/div0rce/sentinel/pull/7) | 2026-05-29 |
-| M7 | Audit log + HITL | `feat/m07-audit-hitl` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | 2026-05-29 |
-| M8 | Frontend | `feat/m08-frontend` | ☐ | — | |
+| M7 | Audit log + HITL | `feat/m07-audit-hitl` | ☑ merged | [#8](https://github.com/div0rce/sentinel/pull/8) | 2026-05-29 |
+| M8 | Frontend | `feat/m08-frontend` | ◐ in progress | — | started 2026-05-29 |
 | M9 | Evaluation harness | `feat/m09-eval` | ☐ | — | |
 | M10 | Deploy (Docker/Terraform/CD) | `feat/m10-deploy` | ☐ | — | |
 | M11 | Docs + diagram + demo | `feat/m11-docs-demo` | ☐ | — | |
