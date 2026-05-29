@@ -20,6 +20,7 @@ Coverage maps onto the M7 DoD:
 from __future__ import annotations
 
 from collections.abc import Iterator
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
@@ -102,6 +103,33 @@ def test_idempotent_reroute_does_not_emit_duplicate(session: Session) -> None:
     route_extraction(session, extraction_id=extraction.id)
     events = _events_for_workflow_item(session, item.id)
     assert len(events) == 1
+
+
+def test_losing_reroute_race_does_not_emit_duplicate_workflow_routed(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    extraction = _seed_extraction(session, hash_suffix="race")
+    item = route_extraction(session, extraction_id=extraction.id)
+
+    original_get = workflow_items_repo.get_by_idempotency_key
+    calls = 0
+
+    def stale_miss_once(session: Session, key: str) -> WorkflowItem | None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return None
+        return original_get(session, key)
+
+    monkeypatch.setattr(workflow_items_repo, "get_by_idempotency_key", stale_miss_once)
+
+    rerouted = route_extraction(session, extraction_id=extraction.id)
+
+    assert rerouted.id == item.id
+    assert calls == 2
+    events = _events_for_workflow_item(session, item.id)
+    assert len(events) == 1
+    assert events[0].action == AuditAction.WORKFLOW_ROUTED
 
 
 def test_route_extraction_emits_on_status_change(session: Session) -> None:
@@ -222,6 +250,39 @@ def test_post_approve_rejects_already_decided_item(client: TestClient, session: 
     # Second approval on the now-auto_approved item must 409.
     second = client.post(f"/review/{item.id}/approve", json={"actor": "user:a"})
     assert second.status_code == 409
+
+
+def test_concurrent_review_decision_loser_returns_409_without_audit(
+    client: TestClient, session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    item = _seed_needs_review(session, hash_suffix="cd")
+    first = client.post(f"/review/{item.id}/reject", json={"actor": "user:first"})
+    assert first.status_code == 200
+
+    before_events = _events_for_workflow_item(session, item.id)
+    original_get = workflow_items_repo.get
+    stale_item = SimpleNamespace(
+        id=item.id,
+        extraction_id=item.extraction_id,
+        status=WorkflowStatus.NEEDS_REVIEW,
+        reason=item.reason,
+        idempotency_key=item.idempotency_key,
+        created_at=item.created_at,
+        updated_at=item.updated_at,
+    )
+
+    monkeypatch.setattr(workflow_items_repo, "get", lambda session, item_id: stale_item)
+
+    second = client.post(f"/review/{item.id}/approve", json={"actor": "user:second"})
+
+    assert second.status_code == 409
+    refreshed = original_get(session, item.id)
+    assert refreshed is not None
+    assert refreshed.status is WorkflowStatus.REJECTED
+    after_events = _events_for_workflow_item(session, item.id)
+    assert len(after_events) == len(before_events)
+    assert [event.action for event in after_events].count(AuditAction.REVIEW_REJECTED) == 1
+    assert [event.action for event in after_events].count(AuditAction.REVIEW_APPROVED) == 0
 
 
 def test_post_approve_returns_404_for_unknown_item(client: TestClient) -> None:

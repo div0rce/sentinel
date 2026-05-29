@@ -109,15 +109,20 @@ def _decide(
             "only items in needs_review can be approved or rejected via this endpoint",
         )
 
-    prior_status = item.status
-    updated = workflow_items_repo.set_status(
+    prior_status = WorkflowStatus.NEEDS_REVIEW
+    updated = workflow_items_repo.transition_from_status(
         session,
         item_id,
-        status=target_status,
+        expected_status=prior_status,
+        target_status=target_status,
         reason=f"human:{decision}",
     )
-    if updated is None:  # pragma: no cover - we just loaded it
-        raise HTTPException(status.HTTP_404_NOT_FOUND, f"workflow_items.id={item_id} disappeared")
+    if updated is None:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"workflow_items.id={item_id} is no longer needs_review; "
+            "only items in needs_review can be approved or rejected via this endpoint",
+        )
 
     audit = emit_review_decision(
         session,

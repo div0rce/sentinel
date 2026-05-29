@@ -162,3 +162,37 @@ def test_workflow_items_set_status_transitions_and_returns_none_for_missing(
     assert (
         workflow_items_repo.set_status(session, 99_999_999, status=WorkflowStatus.REJECTED) is None
     )
+
+
+def test_workflow_items_transition_from_status_is_conditional(session: Session) -> None:
+    doc = _make_document(session, hash_suffix="w3")
+    extraction = extractions_repo.create(session, document_id=doc.id, schema_name="x", payload={})
+    item = workflow_items_repo.create(
+        session,
+        extraction_id=extraction.id,
+        status=WorkflowStatus.NEEDS_REVIEW,
+        idempotency_key="route-3",
+    )
+
+    updated = workflow_items_repo.transition_from_status(
+        session,
+        item.id,
+        expected_status=WorkflowStatus.NEEDS_REVIEW,
+        target_status=WorkflowStatus.REJECTED,
+        reason="human:rejected",
+    )
+    assert updated is not None
+    assert updated.status is WorkflowStatus.REJECTED
+    assert updated.reason == "human:rejected"
+
+    stale = workflow_items_repo.transition_from_status(
+        session,
+        item.id,
+        expected_status=WorkflowStatus.NEEDS_REVIEW,
+        target_status=WorkflowStatus.AUTO_APPROVED,
+        reason="human:approved",
+    )
+    assert stale is None
+    refreshed = workflow_items_repo.get(session, item.id)
+    assert refreshed is not None
+    assert refreshed.status is WorkflowStatus.REJECTED
