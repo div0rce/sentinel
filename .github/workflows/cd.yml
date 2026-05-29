@@ -1,0 +1,98 @@
+name: CD
+on:
+  workflow_dispatch:
+    inputs:
+      services:
+        description: "Which services to deploy. backend|frontend|both"
+        required: true
+        default: both
+        type: choice
+        options:
+          - both
+          - backend
+          - frontend
+
+permissions:
+  id-token: write   # OIDC
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  PROJECT_NAME: sentinel
+  IMAGE_TAG: ${{ github.sha }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    # M10 invariant: deploys are manual-dispatch only. Never push:, never pull_request:.
+    # Cost-control gate is enforced by the trigger above; do not add more.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: github-actions-${{ github.run_id }}
+
+      - name: Login to Amazon ECR
+        id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Resolve repo URIs
+        id: ecr-uri
+        run: |
+          set -eu
+          backend_uri="${{ steps.ecr-login.outputs.registry }}/${{ env.PROJECT_NAME }}-backend"
+          frontend_uri="${{ steps.ecr-login.outputs.registry }}/${{ env.PROJECT_NAME }}-frontend"
+          echo "backend_uri=${backend_uri}" >> "$GITHUB_OUTPUT"
+          echo "frontend_uri=${frontend_uri}" >> "$GITHUB_OUTPUT"
+
+      - name: Build & push backend image
+        if: ${{ inputs.services == 'backend' || inputs.services == 'both' }}
+        run: |
+          set -eu
+          docker build \
+            --platform linux/amd64 \
+            -t "${{ steps.ecr-uri.outputs.backend_uri }}:${{ env.IMAGE_TAG }}" \
+            -t "${{ steps.ecr-uri.outputs.backend_uri }}:latest" \
+            -f backend/Dockerfile .
+          docker push "${{ steps.ecr-uri.outputs.backend_uri }}:${{ env.IMAGE_TAG }}"
+          docker push "${{ steps.ecr-uri.outputs.backend_uri }}:latest"
+
+      - name: Build & push frontend image
+        if: ${{ inputs.services == 'frontend' || inputs.services == 'both' }}
+        run: |
+          set -eu
+          docker build \
+            --platform linux/amd64 \
+            -t "${{ steps.ecr-uri.outputs.frontend_uri }}:${{ env.IMAGE_TAG }}" \
+            -t "${{ steps.ecr-uri.outputs.frontend_uri }}:latest" \
+            ./frontend
+          docker push "${{ steps.ecr-uri.outputs.frontend_uri }}:${{ env.IMAGE_TAG }}"
+          docker push "${{ steps.ecr-uri.outputs.frontend_uri }}:latest"
+
+      - name: Force ECS redeploy (backend)
+        if: ${{ inputs.services == 'backend' || inputs.services == 'both' }}
+        run: |
+          aws ecs update-service \
+            --cluster "${{ env.PROJECT_NAME }}-cluster" \
+            --service "${{ env.PROJECT_NAME }}-backend" \
+            --force-new-deployment \
+            --no-cli-pager
+
+      - name: Force ECS redeploy (frontend)
+        if: ${{ inputs.services == 'frontend' || inputs.services == 'both' }}
+        run: |
+          aws ecs update-service \
+            --cluster "${{ env.PROJECT_NAME }}-cluster" \
+            --service "${{ env.PROJECT_NAME }}-frontend" \
+            --force-new-deployment \
+            --no-cli-pager
+
+      - name: Summarise deployment
+        run: |
+          echo "Deployed image tag: ${{ env.IMAGE_TAG }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Services: ${{ inputs.services }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Region: ${{ env.AWS_REGION }}" >> "$GITHUB_STEP_SUMMARY"

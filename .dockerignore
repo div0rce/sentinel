@@ -1,0 +1,52 @@
+# Build context for the backend image is the repo root (so the Dockerfile can
+# COPY pyproject.toml uv.lock alembic.ini). Trim everything that doesn't ship
+# in the backend image so the context stays small and free of secrets.
+
+# Repo metadata / VCS
+.git/
+.github/
+.gitignore
+.editorconfig
+.dockerignore
+**/.DS_Store
+
+# Test trees
+backend/tests/
+backend/.pytest_cache/
+backend/__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+
+# Local Python state
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
+# Local secrets / env
+.env
+.env.*
+
+# Frontend tree (frontend image has its own context)
+frontend/
+
+# Eval, scripts, infra, docs — none of these ship in the backend image
+eval/
+scripts/
+infra/
+docs/
+
+# IDE / agent state
+.kiro/
+.claude/
+.agents/
+
+# Local data
+data/
+
+# Misc
+*.log
+*.md
+node_modules/
+dist/

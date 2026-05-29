@@ -4,8 +4,9 @@
  * Each function maps 1:1 to a backend endpoint. The response interfaces mirror
  * the backend Pydantic shapes — keep them in lockstep when either side changes.
  * The base URL defaults to "" so paths resolve same-origin against the Vite
- * dev-server proxy or the deployed reverse proxy; override with `?api=...` URL
- * parameter or VITE_API_BASE env var if needed.
+ * dev-server proxy. The deployed Docker image builds with VITE_API_BASE=/api so
+ * nginx can separate API traffic from React Router UI paths. Override with
+ * `?api=...` URL parameter or VITE_API_BASE env var if needed.
  */
 
 const DEFAULT_BASE = "";

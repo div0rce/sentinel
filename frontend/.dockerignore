@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.vite/
+coverage/
+*.log
+*.tsbuildinfo
+.DS_Store
+.env.local
+
+# Test files don't need to ship in the image
+src/**/__tests__/
+src/test/
+
+# Repo-level meta
+.git/
+.github/
+.kiro/
+.claude/
+.agents/

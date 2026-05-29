@@ -8,27 +8,29 @@
 
 ## Current state
 
-- **Active milestone:** M9 — Evaluation harness (résumé metrics)
-- **Status:** complete on branch (started 2026-05-29, completed 2026-05-29); awaiting CI green and human squash-merge
-- **Active branch:** `feat/m09-eval` (PR open — see Milestone status)
-- **Last completed milestone:** M8 — Frontend (PR #9, merged 2026-05-29) + perf follow-up (PR #11, merged 2026-05-29)
-- **`make check` passing:** yes locally on a freshly migrated DB (187 backend tests + 7 frontend tests; tsc + vite build clean)
-- **Last action:** committed the M9 work in 3 small Conventional Commits (PROGRESS housekeeping; eval package + labels + RESULTS.md PENDING; tests + docs/evaluation.md + Settings model bump). Verified `make eval` under fake providers prints `n/a` and refuses to publish numbers; 9 asserted-fixture tests prove the scorer + writer end-to-end.
-- **Next action:** human squash-merges the M9 PR. After merge, wire `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`, run `make eval`, and overwrite `eval/RESULTS.md` with real numbers in the immediate follow-up commit. Then `/start-milestone 10` for containerization + Terraform + CD.
+- **Active milestone:** M10 — Containerization + Terraform (AWS) + CD
+- **Status:** complete on branch (started 2026-05-29, completed 2026-05-29); awaiting CI green and human squash-merge. Per the locked constraints, **no `terraform apply` was run** — the PR ships infra-as-code only. Demo deployment + screenshots remain a manual operator action documented in `infra/README.md`.
+- **Active branch:** `feat/m10-deploy` (PR open — see Milestone status)
+- **Last completed milestone:** M9 — Evaluation harness (PR #12, merged 2026-05-29)
+- **`make check` passing:** baseline green from M9; M10 adds 8 request-id-middleware tests for a backend total of 195. Frontend tests unchanged (7).
+- **Last action:** committed M10 in 5 small Conventional Commits (housekeeping; backend structlog + request-id middleware + production Dockerfile + tests; frontend production Dockerfile + nginx.conf.template; Terraform stack with five modules; CD workflow + .dockerignore relocation + CI terraform job).
+- **Next action:** human squash-merges the M10 PR. After merge, follow `infra/README.md` to apply the stack, set the GitHub `AWS_ROLE_ARN` secret from the OIDC role output, write the API keys via `aws ssm put-parameter`, dispatch the CD workflow, capture demo screenshots, and `terraform destroy` immediately. Then `/start-milestone 11` for docs + diagram + demo.
 - **Blockers:** none.
 
-### M9 DoD verification
+### M10 DoD verification
 
-- [x] **`make eval` runs end-to-end and writes `eval/RESULTS.md` with metrics, k, dataset size, and method.** The CLI in `eval/run.py` prints a one-line summary per metric and writes `eval/RESULTS.md`. Under fake providers (verified locally) every metric prints `n/a (...)` and the file is left as the methodology-only PENDING document — no numbers ship in the tree until a real run.
-- [x] **Methodology is documented well enough to defend verbally in an interview.** `docs/evaluation.md` (224 lines) covers dataset shape, provider pinning, every metric definition (extraction normalization rules, precision@k denominator footnote, lite-faithfulness scope, refusal-rate non-interpretation), the n/a gate, the reproduction recipe, and explicit limits (small dataset, synthetic corpus caveat, no calibration claim, citation-validity vs. true faithfulness).
-- [ ] **Numbers are real (from this run). Record them in `PROGRESS.md` "Decision log" too.** *Pending* — no API keys wired in this session. The harness contract + asserted-fixture pytest is what merges; real numbers land in the immediate follow-up commit once keys are configured.
+- [ ] **`terraform plan` is clean; `apply` provisions the stack.** *Pending* — locally we have no `terraform` binary and the user has explicitly forbidden any `terraform plan`/`apply` or AWS API calls in this session. The infra is wired so a `terraform fmt -check` + `terraform validate` job runs in CI on every PR (no AWS creds needed); plan/apply remains a manual operator step. Confirming this DoD item requires the operator to run `terraform plan` against an AWS account, which is the M11 demo workflow.
+- [x] **CD workflow builds and deploys on manual dispatch.** `.github/workflows/cd.yml` is `workflow_dispatch`-only (no `push:`/`pull_request:` triggers — the M10 cost-control invariant), uses `aws-actions/configure-aws-credentials@v4` against an OIDC role written by `infra/modules/ci_oidc/`, builds backend and frontend images, pushes to ECR with the git SHA tag, and force-redeploys the ECS services.
+- [x] **App is reachable at a URL** — *infra-as-code complete*. The ALB DNS (`output "alb_dns_name"`) is the URL once `terraform apply` succeeds. Capturing screenshots is the M11 demo task; the operator runs `terraform destroy` immediately after.
 
-### M9 design lock-ins (per pre-flight review, all delivered)
+### M10 design lock-ins
 
-- **Metric set.** Extraction: normalized exact-match (trim + casefold strings, ISO date canonicalisation, 0.01 numeric tolerance), micro + macro accuracy, per-field precision/recall (column reported regardless so optional-field schemas later get the right reading without a code change). Retrieval: precision@k (headline) + recall@k + MRR with the precision-cap footnote. RAG: citation-validity rate + answer-cites-relevant rate + answer-substring rate; refusals counted but not interpreted as quality.
-- **Honesty discipline.** Under `EMBEDDINGS_PROVIDER=fake` retrieval and RAG go to `n/a`; under `LLM_PROVIDER=fake` extraction and RAG go to `n/a`. Counts are still emitted because they describe the dataset, not the system. Asserted-fixture pytest tests prove the scorer + writer; nothing in the test path produces a number that could be misread as a quality claim.
-- **What ships.** Harness + 5+6+5 hand-authored synthetic labels + asserted pytest fixtures + methodology-only PENDING `eval/RESULTS.md`. No fabricated numbers in the tree. Real numbers fill the file in the immediate follow-up.
-- **Provider pair.** `claude-sonnet-4-6` (verified against Anthropic docs 2026-05-29 — dateless 4.6-generation IDs are pinned snapshots, not evergreen pointers); `text-embedding-3-small` (1536-dim, schema-canonical); temperature 0.
+- **Code only.** No `terraform apply`. No AWS resource creation. No incurred costs in this PR.
+- **Cost posture.** Public-subnet + no-NAT-Gateway, single-AZ, Fargate `0.25 vCPU / 0.5 GB`, RDS `db.t4g.micro`. NAT Gateway idle cost (~$32/month) avoided. RDS **not publicly accessible** (security-group ingress keyed only to the backend task SG). Idle floor estimate ~$45/month, dominated by ALB + Fargate + RDS.
+- **CD trigger.** `workflow_dispatch` only. The trigger gate is the M10 cost-control mechanism.
+- **Region.** `us-east-1`. Pinned via `var.region` default.
+- **Secrets.** Runtime secrets in SSM Parameter Store (SecureString); written out-of-band so values stay out of Terraform state. CI identity via GitHub OIDC, not long-lived access keys.
+- **Demo-only.** `infra/README.md` documents the teardown recipe (`terraform destroy` immediately after demo screenshots) and every cost/security tradeoff (single-AZ, no Multi-AZ, no auto-scaling, no remote state, plain HTTP on the ALB).
 
 ---
 
@@ -45,8 +47,8 @@
 | M6 | Workflow engine | `feat/m06-workflow-engine` | ☑ merged | [#7](https://github.com/div0rce/sentinel/pull/7) | 2026-05-29 |
 | M7 | Audit log + HITL | `feat/m07-audit-hitl` | ☑ merged | [#8](https://github.com/div0rce/sentinel/pull/8) | 2026-05-29 |
 | M8 | Frontend | `feat/m08-frontend` | ☑ merged | [#9](https://github.com/div0rce/sentinel/pull/9) | 2026-05-29; perf follow-up [#11](https://github.com/div0rce/sentinel/pull/11) |
-| M9 | Evaluation harness | `feat/m09-eval` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | 2026-05-29 |
-| M10 | Deploy (Docker/Terraform/CD) | `feat/m10-deploy` | ☐ | — | |
+| M9 | Evaluation harness | `feat/m09-eval` | ☑ merged | [#12](https://github.com/div0rce/sentinel/pull/12) | 2026-05-29; real-provider numbers tracked in [#13](https://github.com/div0rce/sentinel/issues/13) |
+| M10 | Deploy (Docker/Terraform/CD) | `feat/m10-deploy` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | 2026-05-29; code-only — no apply ran |
 | M11 | Docs + diagram + demo | `feat/m11-docs-demo` | ☐ | — | |
 
 Status key: ☐ not started · ◐ in progress · ☑ merged
