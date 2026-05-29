@@ -40,6 +40,7 @@ from typing import Final
 
 from sqlalchemy.orm import Session
 
+from backend.app.audit import emit_workflow_routed
 from backend.app.config import Settings, get_settings
 from backend.app.guardrails import requires_review
 from backend.app.models import WorkflowItem, WorkflowStatus
@@ -279,4 +280,15 @@ def route_extraction(
         confidence_review_threshold=settings.confidence_review_threshold,
     )
     decision = route(inputs)
-    return apply_routing(session, extraction_id=extraction_id, decision=decision)
+
+    # Capture prior status (if any) before apply_routing so we can decide whether
+    # to emit a workflow.routed event. The audit DoD requires exactly one event
+    # per state-changing decision; a no-op re-route must not emit.
+    prior = workflow_items_repo.get_by_idempotency_key(session, decision.idempotency_key)
+    prior_status = prior.status if prior is not None else None
+
+    item = apply_routing(session, extraction_id=extraction_id, decision=decision)
+
+    if prior_status is None or prior_status is not item.status:
+        emit_workflow_routed(session, workflow_item=item, prior_status=prior_status)
+    return item
