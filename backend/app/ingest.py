@@ -32,6 +32,7 @@ from backend.app.chunking import chunk_text
 from backend.app.config import Settings, get_settings
 from backend.app.db import get_session_factory
 from backend.app.embeddings import EmbeddingProvider, get_embedder
+from backend.app.guardrails import redact_pii
 from backend.app.repositories import chunks as chunks_repo
 from backend.app.repositories import documents as documents_repo
 
@@ -100,14 +101,22 @@ def ingest_document(
     )
     chunk_count = 0
     if chunks:
-        embeddings = embedder.embed([c.text for c in chunks])
+        # Pre-storage redaction: when enabled (default), the text the database holds
+        # is the redacted version. Idempotency is unaffected — the document hash is
+        # computed on the *original* text above, so re-ingesting the same source
+        # still short-circuits via the get_by_hash check.
+        if settings.pii_redaction_enabled:
+            chunk_texts = [redact_pii(c.text).text for c in chunks]
+        else:
+            chunk_texts = [c.text for c in chunks]
+        embeddings = embedder.embed(chunk_texts)
         chunks_repo.bulk_insert(
             session,
             document_id=document.id,
             chunks=[
                 {
                     "ord": c.ord,
-                    "text": c.text,
+                    "text": chunk_texts[i],
                     "token_count": c.token_count,
                     "embedding": embeddings[i],
                 }

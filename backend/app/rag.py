@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 
 from backend.app.config import Settings, get_settings
 from backend.app.embeddings import EmbeddingProvider
+from backend.app.guardrails import redact_pii
 from backend.app.llm import LLMClient
 from backend.app.retrieval import ChunkScore, cosine_top_k
 
@@ -81,12 +82,18 @@ class CitationParseResult:
     has_markers: bool
 
 
-def _build_user_prompt(question: str, hits: list[ChunkScore]) -> str:
+def _build_user_prompt(question: str, hits: list[ChunkScore], *, redact: bool) -> str:
+    """Build the user-facing prompt; redact PII out of question and chunk text when
+    requested. Chunks ingested with redaction enabled are already redacted; this is
+    a defense-in-depth pass that also catches PII slipped in via the live query
+    string."""
     parts: list[str] = ["Context:"]
     for hit in hits:
-        parts.append(f"[chunk:{hit.chunk.id}] {hit.chunk.text}")
+        text = redact_pii(hit.chunk.text).text if redact else hit.chunk.text
+        parts.append(f"[chunk:{hit.chunk.id}] {text}")
     parts.append("")
-    parts.append(f"Question: {question}")
+    redacted_question = redact_pii(question).text if redact else question
+    parts.append(f"Question: {redacted_question}")
     return "\n".join(parts)
 
 
@@ -154,7 +161,7 @@ def answer_query(
             retrieved=hits,
         )
 
-    user_prompt = _build_user_prompt(query, hits)
+    user_prompt = _build_user_prompt(query, hits, redact=settings.pii_redaction_enabled)
     response = llm.complete(
         system=SYSTEM_PROMPT,
         user=user_prompt,

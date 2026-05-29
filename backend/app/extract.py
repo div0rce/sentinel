@@ -38,6 +38,11 @@ from sqlalchemy.orm import Session
 
 from backend.app.config import Settings, get_settings
 from backend.app.extraction_schemas import ExtractedField, get_schema
+from backend.app.guardrails import (
+    low_confidence_fields,
+    redact_pii,
+    requires_review,
+)
 from backend.app.llm import LLMClient
 from backend.app.repositories import chunks as chunks_repo
 from backend.app.repositories import documents as documents_repo
@@ -65,6 +70,8 @@ class ExtractionResult:
     payload: dict[str, Any] = field(default_factory=dict)
     field_confidence: dict[str, float] = field(default_factory=dict)
     field_citations: dict[str, list[int]] = field(default_factory=dict)
+    requires_review: bool = False
+    low_confidence_fields: list[str] = field(default_factory=list)
     reason: FailureReason | None = None
     detail: str | None = None
 
@@ -85,7 +92,13 @@ SYSTEM_PROMPT = (
 # --- prompt construction --------------------------------------------------------------
 
 
-def _build_user_prompt(*, schema_cls: type[BaseModel], schema_name: str, chunks: list[Any]) -> str:
+def _build_user_prompt(
+    *,
+    schema_cls: type[BaseModel],
+    schema_name: str,
+    chunks: list[Any],
+    redact: bool,
+) -> str:
     schema_json = json.dumps(schema_cls.model_json_schema(), indent=2)
     parts: list[str] = [
         f"Schema (JSON Schema for the {schema_name!r} record):",
@@ -94,7 +107,8 @@ def _build_user_prompt(*, schema_cls: type[BaseModel], schema_name: str, chunks:
         "Context (each chunk has an integer id):",
     ]
     for chunk in chunks:
-        parts.append(f"[chunk:{chunk.id}] {chunk.text}")
+        text = redact_pii(chunk.text).text if redact else chunk.text
+        parts.append(f"[chunk:{chunk.id}] {text}")
     parts.append("")
     parts.append(
         f"Extract the {schema_name} record from the context above. Output the JSON object only."
@@ -207,7 +221,12 @@ def extract_document(
         )
 
     # 3-4. prompt + LLM call
-    user_prompt = _build_user_prompt(schema_cls=schema_cls, schema_name=schema_name, chunks=chunks)
+    user_prompt = _build_user_prompt(
+        schema_cls=schema_cls,
+        schema_name=schema_name,
+        chunks=chunks,
+        redact=settings.pii_redaction_enabled,
+    )
     response = llm.complete(
         system=SYSTEM_PROMPT,
         user=user_prompt,
@@ -269,4 +288,8 @@ def extract_document(
         payload=payload,
         field_confidence=confidence,
         field_citations=citations,
+        requires_review=requires_review(confidence, threshold=settings.confidence_review_threshold),
+        low_confidence_fields=low_confidence_fields(
+            confidence, threshold=settings.confidence_review_threshold
+        ),
     )
