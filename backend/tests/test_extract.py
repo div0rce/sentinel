@@ -25,6 +25,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from backend.app.config import Settings
@@ -198,6 +199,24 @@ def test_extract_document_schema_invalid_extra_keys(session: Session) -> None:
     assert result.reason == "schema_invalid"
 
 
+def test_extract_document_schema_invalid_issue_date_shape(session: Session) -> None:
+    doc, chunks = _seed_document_with_chunks(session, hash_suffix="dt", texts=["x"])
+    cid = chunks[0].id
+    payload = json.loads(_valid_invoice_json(chunk_id=cid))
+    payload["issue_date"]["value"] = "Jan 22, 2026"
+    before_count = len(extractions_repo.list_for_document(session, doc.id))
+
+    llm = FakeLLM(response=json.dumps(payload))
+    result = extract_document(
+        session, document_id=doc.id, schema_name="invoice", llm=llm, settings=TEST_SETTINGS
+    )
+
+    assert result.status == "failed"
+    assert result.reason == "schema_invalid"
+    after_count = len(extractions_repo.list_for_document(session, doc.id))
+    assert after_count == before_count
+
+
 def test_extract_document_invalid_citation_when_chunk_not_in_context(session: Session) -> None:
     doc, chunks = _seed_document_with_chunks(session, hash_suffix="bg", texts=["x"])
     cid = chunks[0].id
@@ -286,3 +305,19 @@ def test_invoice_schema_round_trips() -> None:
     parsed = InvoicePayload.model_validate(json.loads(_valid_invoice_json(chunk_id=1)))
     assert parsed.invoice_number.value == "INV-2026-X"
     assert parsed.total_due.value == pytest.approx(1234.56)
+
+
+def test_invoice_schema_rejects_non_iso_issue_date() -> None:
+    payload = json.loads(_valid_invoice_json(chunk_id=1))
+    payload["issue_date"]["value"] = "unknown"
+
+    with pytest.raises(ValidationError):
+        InvoicePayload.model_validate(payload)
+
+
+def test_invoice_schema_json_schema_constrains_issue_date_shape() -> None:
+    schema = InvoicePayload.model_json_schema()
+    issue_date_ref = schema["properties"]["issue_date"]["$ref"]
+    issue_date_def = schema["$defs"][issue_date_ref.removeprefix("#/$defs/")]
+
+    assert issue_date_def["properties"]["value"]["pattern"] == r"^\d{4}-\d{2}-\d{2}$"

@@ -9,11 +9,11 @@
 ## Current state
 
 - **Active milestone:** M4 — Structured extraction
-- **Status:** complete on branch (started 2026-05-28, completed 2026-05-28); awaiting CI green and human squash-merge
+- **Status:** complete on branch (started 2026-05-28, completed 2026-05-28); invoice date validation fix applied and awaiting CI green + human squash-merge
 - **Active branch:** `feat/m04-extraction` (PR open — see Milestone status)
 - **Last completed milestone:** M3 — Retrieval + citation-grounded RAG (PR #4, merged 2026-05-28)
-- **`make check` passing:** yes locally on a freshly migrated DB (96 tests pass)
-- **Last action:** committed 6 small Conventional Commits for M4 (PROGRESS housekeeping, schema layer, orchestrator, router, tests); verified citation-validation and schema-validation invariants with FakeLLM fixtures.
+- **`make check` passing:** yes locally on a freshly migrated DB (99 tests pass)
+- **Last action:** fixed PR review finding: invoice `issue_date` is now constrained to real `YYYY-MM-DD` ISO date strings in validation and generated JSON Schema; verified focused extraction tests.
 - **Next action:** human squash-merges the M4 PR. After merge, run `/start-milestone 05` to begin M5 (guardrails).
 - **Blockers:** none.
 
@@ -28,12 +28,12 @@
   validated model into three flat dicts (`payload`, `field_confidence`, `field_citations`)
   before persisting.
 - [x] **Tests with FakeLLM fixtures cover valid extraction, malformed output handling, and
-  persistence.** 20 new M4 tests:
+  persistence.** 23 new M4 tests:
   - **valid**: round-trip produces an extraction row whose payload, per-field confidence,
     and per-field citations are recoverable from the repo; `model_name='fake-llm'` captured.
   - **malformed**: `parse_error` on non-JSON, `parse_error` on JSON-but-not-an-object,
     `schema_invalid` on missing required fields / out-of-range confidence / extra
-    forbidden keys, `invalid_citation` on a fabricated `source_chunk_id`,
+    forbidden keys / invalid invoice issue-date shape, `invalid_citation` on a fabricated `source_chunk_id`,
     `document_not_found` on unknown ids, `no_chunks` on empty docs, `unknown_schema` on
     unregistered names.
   - **persistence**: parametrized test verifies failures (parse_error, schema_invalid)
@@ -86,6 +86,7 @@ Status key: ☐ not started · ◐ in progress · ☑ merged
 - 2026-05-28 (M4) — Schemas are registered in a flat `name → class` dict (`extraction_schemas/registry.py`). Adding a schema is a two-line edit; the orchestrator and `POST /extract` resolve by string name. M4 ships one schema (`invoice`); the M9 eval harness can extend the registry.
 - 2026-05-28 (M4) — Extraction failures (`parse_error`, `schema_invalid`, `invalid_citation`, `document_not_found`, `no_chunks`, `unknown_schema`) **never persist** an `extractions` row. Surfacing the typed reason to the caller is enough for M5 guardrails / M7 audit / M9 eval to bucket failures without polluting the success-only table.
 - 2026-05-28 (M4) — Citation validation reuses the M3 posture: a `source_chunk_id` not in the supplied chunk set is a hard failure (`invalid_citation`), not a silent drop. Same invariant the M3 RAG layer enforces with `[chunk:N]` markers.
+- 2026-05-28 (M4) — Invoice `issue_date` remains persisted as a string but is schema-constrained to a real ISO `YYYY-MM-DD` date; non-ISO or impossible dates fail schema validation before persistence.
 
 ---
 
