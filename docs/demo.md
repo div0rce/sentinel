@@ -174,22 +174,22 @@ Expected shape:
     "vendor": "Initech Components",
     "invoice_number": "INV-2026000",
     "issue_date": "2026-01-22",
-    "total_amount_due": 90006.92
+    "total_due": 90006.92
   },
   "field_confidence": {
     "vendor": 0.97,
     "invoice_number": 0.99,
     "issue_date": 0.94,
-    "total_amount_due": 0.71
+    "total_due": 0.71
   },
   "field_citations": {
     "vendor": [10],
     "invoice_number": [10],
     "issue_date": [10],
-    "total_amount_due": [12]
+    "total_due": [12]
   },
   "requires_review": true,
-  "low_confidence_fields": ["total_amount_due"],
+  "low_confidence_fields": ["total_due"],
   "reason": null
 }
 ```
@@ -235,9 +235,12 @@ Confirm the audit trail:
 
 ```bash
 psql postgres://sentinel:sentinel@localhost:5432/sentinel <<'SQL'
-SELECT id, actor, action, payload->>'note' AS note, created_at
+\set item_id 1
+
+SELECT id, actor, action, before, after, request_id, ts
 FROM audit_events
-WHERE workflow_item_id = 1
+WHERE target_type = 'workflow_item'
+  AND target_id = :item_id
 ORDER BY id;
 SQL
 ```
