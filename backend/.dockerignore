@@ -1,0 +1,41 @@
+# Project artefacts that don't belong in the image
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Tests + tooling not needed at runtime
+backend/tests/
+.github/
+.git/
+.gitignore
+.editorconfig
+.env
+.env.*
+*.md
+docs/
+
+# Frontend tree
+frontend/
+
+# Eval artefacts
+eval/
+scripts/
+
+# Infra / Docker meta
+infra/
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Local Postgres data, IDE
+data/
+.kiro/
+.claude/
+.agents/
+.DS_Store
