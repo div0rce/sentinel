@@ -1,0 +1,76 @@
+---
+title: Sentinel — high-level architecture
+---
+flowchart LR
+    classDef ext fill:#eef,stroke:#557,color:#114
+    classDef api fill:#efe,stroke:#575,color:#141
+    classDef db  fill:#fee,stroke:#755,color:#411
+    classDef ui  fill:#ffe,stroke:#775,color:#441
+    classDef gov fill:#fef,stroke:#757,color:#414
+
+    user([User browser]):::ui
+    cli([CLI / curl]):::ui
+
+    subgraph Frontend["Frontend (Vite + React + TS)"]
+      spa[SPA: Query / Review / Dashboard]:::ui
+      nginx[nginx reverse proxy]:::ui
+    end
+
+    subgraph Backend["Backend (FastAPI, Python 3.12)"]
+      query[/POST /query<br/>RAG/]:::api
+      extract[/POST /extract<br/>structured extraction/]:::api
+      review[/GET/POST /review<br/>HITL queue/]:::api
+      dash[/GET /dashboard/*<br/>KPIs/]:::api
+      health[/GET /health/]:::api
+
+      subgraph Pipeline
+        retrieval[retrieval<br/>pgvector top-k]
+        rag[rag<br/>citation-or-refuse]
+        extr[extract<br/>schema-constrained]
+        wflow[workflow<br/>deterministic FSM]
+      end
+
+      subgraph Governance
+        guard[guardrails<br/>PII redact + conf gate]:::gov
+        audit[audit<br/>append-only events]:::gov
+      end
+    end
+
+    subgraph Data["Postgres 16 + pgvector"]
+      docs[(documents)]:::db
+      chunks[(chunks + embeddings)]:::db
+      extrs[(extractions)]:::db
+      wfit[(workflow_items)]:::db
+      audtbl[(audit_events)]:::db
+    end
+
+    subgraph Providers["External providers"]
+      claude[Anthropic Claude]:::ext
+      openai[OpenAI embeddings]:::ext
+    end
+
+    user --> spa
+    spa --> nginx
+    nginx -- /api/* --> query
+    nginx -- /api/* --> extract
+    nginx -- /api/* --> review
+    nginx -- /api/* --> dash
+    cli --> health
+
+    query --> retrieval --> chunks
+    query --> rag --> claude
+    rag --> guard
+    extract --> retrieval
+    extract --> extr --> claude
+    extract --> guard
+    extract --> wflow --> wfit
+    extract --> extrs
+    review --> wflow
+    review --> audit --> audtbl
+    wflow --> audit
+
+    retrieval --> openai
+
+    dash --> docs
+    dash --> wfit
+    dash --> extrs
