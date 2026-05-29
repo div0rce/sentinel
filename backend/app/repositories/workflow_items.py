@@ -9,6 +9,7 @@ this module stays a thin SQL adapter.
 from __future__ import annotations
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from backend.app.models import WorkflowItem, WorkflowStatus
@@ -32,6 +33,40 @@ def create(
     session.add(item)
     session.flush()
     return item
+
+
+def create_if_absent(
+    session: Session,
+    *,
+    extraction_id: int,
+    status: WorkflowStatus,
+    idempotency_key: str,
+    reason: str | None = None,
+) -> WorkflowItem | None:
+    """Atomically insert a workflow item unless the idempotency key exists.
+
+    Returns the inserted row when this transaction wins the race, or ``None`` when
+    another worker already inserted the same ``idempotency_key``. Transaction
+    boundaries remain caller-owned.
+    """
+    stmt = (
+        insert(WorkflowItem)
+        .values(
+            extraction_id=extraction_id,
+            status=status,
+            reason=reason,
+            idempotency_key=idempotency_key,
+        )
+        .on_conflict_do_nothing(index_elements=[WorkflowItem.idempotency_key])
+        .returning(WorkflowItem.id)
+    )
+    inserted_id = session.execute(stmt).scalar_one_or_none()
+    if inserted_id is None:
+        return None
+    inserted = session.get(WorkflowItem, inserted_id)
+    if inserted is None:  # pragma: no cover - defensive; RETURNING id came from this transaction
+        raise RuntimeError(f"inserted workflow_items.id={inserted_id} could not be loaded")
+    return inserted
 
 
 def get(session: Session, item_id: int) -> WorkflowItem | None:
