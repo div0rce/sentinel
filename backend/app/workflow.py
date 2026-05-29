@@ -13,10 +13,11 @@ This is the differentiator. The engine has three layers, each with sharp boundar
    rule set without colliding with old keys; bumping it is auditable and triggers
    re-routing.
 
-3. **Persistence layer** — :func:`apply_routing` upserts a ``workflow_items`` row
-   keyed by the deterministic idempotency key. Re-running with the same decision is
-   a no-op. Transitioning a ``REJECTED`` row to ``AUTO_APPROVED`` through this path
-   is refused (M7's audit-driven approval flow is the only legitimate route).
+3. **Persistence layer** — :func:`apply_routing` creates a ``workflow_items`` row
+   through an atomic conflict-safe insert keyed by the deterministic idempotency key.
+   Re-running with the same decision is a no-op. Transitioning a ``REJECTED`` row to
+   ``AUTO_APPROVED`` through this path is refused (M7's audit-driven approval flow is
+   the only legitimate route).
 
 Invariants enforced at decision time:
 
@@ -181,18 +182,27 @@ def apply_routing(
       and the new status is ``AUTO_APPROVED``. That promotion requires a human
       event and is therefore refused with :class:`IllegalTransition`.
 
+    The create path is atomic under concurrent workers: a stale miss falls through
+    to ``INSERT ... ON CONFLICT DO NOTHING`` and then reuses the winning row.
     Callers must commit the session themselves; the engine flushes but never commits.
     """
     existing = workflow_items_repo.get_by_idempotency_key(session, decision.idempotency_key)
 
     if existing is None:
-        return workflow_items_repo.create(
+        inserted = workflow_items_repo.create_if_absent(
             session,
             extraction_id=extraction_id,
             status=decision.status,
             idempotency_key=decision.idempotency_key,
             reason=decision.reason,
         )
+        if inserted is not None:
+            return inserted
+        existing = workflow_items_repo.get_by_idempotency_key(session, decision.idempotency_key)
+        if existing is None:  # pragma: no cover - defensive; conflict winner should be visible
+            raise RuntimeError(
+                "workflow_items.idempotency_key conflict occurred but no row was found"
+            )
 
     if existing.status is decision.status:
         return existing

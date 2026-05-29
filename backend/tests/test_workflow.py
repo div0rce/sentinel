@@ -24,6 +24,7 @@ from backend.app.config import Settings
 from backend.app.models import Extraction, WorkflowItem, WorkflowStatus
 from backend.app.repositories import documents as documents_repo
 from backend.app.repositories import extractions as extractions_repo
+from backend.app.repositories import workflow_items as workflow_items_repo
 from backend.app.workflow import (
     ROUTING_VERSION,
     IllegalTransition,
@@ -227,6 +228,50 @@ def test_apply_routing_is_idempotent_no_duplicate_rows(session: Session) -> None
     rows = session.execute(
         select(WorkflowItem).where(WorkflowItem.idempotency_key == decision.idempotency_key)
     ).all()
+    assert len(rows) == 1
+
+
+def test_apply_routing_tolerates_stale_idempotency_miss(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A concurrent insert after the first read must not surface IntegrityError."""
+    extraction = _seed_extraction(
+        session, hash_suffix="race", field_confidence={"a": 0.9, "b": 0.9}
+    )
+    decision = route(
+        _make_inputs(extraction_id=extraction.id, field_confidence={"a": 0.9, "b": 0.9})
+    )
+    existing = workflow_items_repo.create(
+        session,
+        extraction_id=extraction.id,
+        status=decision.status,
+        idempotency_key=decision.idempotency_key,
+        reason=decision.reason,
+    )
+
+    original_get = workflow_items_repo.get_by_idempotency_key
+    calls = 0
+
+    def stale_once(session: Session, key: str) -> WorkflowItem | None:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            return None
+        return original_get(session, key)
+
+    monkeypatch.setattr(workflow_items_repo, "get_by_idempotency_key", stale_once)
+
+    item = apply_routing(session, extraction_id=extraction.id, decision=decision)
+
+    assert item.id == existing.id
+    assert calls == 2
+    rows = (
+        session.execute(
+            select(WorkflowItem).where(WorkflowItem.idempotency_key == decision.idempotency_key)
+        )
+        .scalars()
+        .all()
+    )
     assert len(rows) == 1
 
 
