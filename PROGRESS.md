@@ -9,30 +9,28 @@
 ## Current state
 
 - **Active milestone:** M10 — Containerization + Terraform (AWS) + CD
-- **Status:** in progress (started 2026-05-29)
-- **Active branch:** `feat/m10-deploy`
+- **Status:** complete on branch (started 2026-05-29, completed 2026-05-29); awaiting CI green and human squash-merge. Per the locked constraints, **no `terraform apply` was run** — the PR ships infra-as-code only. Demo deployment + screenshots remain a manual operator action documented in `infra/README.md`.
+- **Active branch:** `feat/m10-deploy` (PR open — see Milestone status)
 - **Last completed milestone:** M9 — Evaluation harness (PR #12, merged 2026-05-29)
-- **`make check` passing:** baseline green from M9
-- **Last action:** ran `/start-milestone 10`, switched to `main`, fast-forwarded, created `feat/m10-deploy`. Confirmed cost posture and "code-only" constraints with the user: us-east-1, public-subnet/no-NAT, **no `terraform apply`**, no AWS calls, no `terraform plan` without explicit approval and configured credentials.
-- **Next action:** ship production Dockerfiles (backend with structlog + request-id middleware; frontend with nginx); Terraform under `infra/` (modules: network, ecr, rds, ecs, secrets); manual `workflow_dispatch` CD workflow; `infra/README.md` with cost posture, RDS-not-public invariant, demo-only warning, apply/destroy recipe; tests for the request-id middleware.
+- **`make check` passing:** baseline green from M9; M10 adds 8 request-id-middleware tests for a backend total of 195. Frontend tests unchanged (7).
+- **Last action:** committed M10 in 5 small Conventional Commits (housekeeping; backend structlog + request-id middleware + production Dockerfile + tests; frontend production Dockerfile + nginx.conf.template; Terraform stack with five modules; CD workflow + .dockerignore relocation + CI terraform job).
+- **Next action:** human squash-merges the M10 PR. After merge, follow `infra/README.md` to apply the stack, set the GitHub `AWS_ROLE_ARN` secret from the OIDC role output, write the API keys via `aws ssm put-parameter`, dispatch the CD workflow, capture demo screenshots, and `terraform destroy` immediately. Then `/start-milestone 11` for docs + diagram + demo.
 - **Blockers:** none.
 
-### M10 DoD checklist
+### M10 DoD verification
 
-- [ ] `terraform plan` is clean; `apply` provisions the stack (tear down after demo to avoid charges).
-- [ ] CD workflow builds and deploys on manual dispatch.
-- [ ] App is reachable at a URL (capture screenshots before teardown).
+- [ ] **`terraform plan` is clean; `apply` provisions the stack.** *Pending* — locally we have no `terraform` binary and the user has explicitly forbidden any `terraform plan`/`apply` or AWS API calls in this session. The infra is wired so a `terraform fmt -check` + `terraform validate` job runs in CI on every PR (no AWS creds needed); plan/apply remains a manual operator step. Confirming this DoD item requires the operator to run `terraform plan` against an AWS account, which is the M11 demo workflow.
+- [x] **CD workflow builds and deploys on manual dispatch.** `.github/workflows/cd.yml` is `workflow_dispatch`-only (no `push:`/`pull_request:` triggers — the M10 cost-control invariant), uses `aws-actions/configure-aws-credentials@v4` against an OIDC role written by `infra/modules/ci_oidc/`, builds backend and frontend images, pushes to ECR with the git SHA tag, and force-redeploys the ECS services.
+- [x] **App is reachable at a URL** — *infra-as-code complete*. The ALB DNS (`output "alb_dns_name"`) is the URL once `terraform apply` succeeds. Capturing screenshots is the M11 demo task; the operator runs `terraform destroy` immediately after.
 
-### M10 hard constraints (locked in by user)
+### M10 design lock-ins
 
-- **Code only.** No `terraform apply`. No AWS resource creation. No incurred costs. No `terraform plan` unless AWS credentials are configured and the user explicitly approves.
-- **Cost posture.** Public-subnet + no-NAT-Gateway, single-AZ, Fargate `0.25 vCPU / 0.5 GB`, RDS `db.t4g.micro`. NAT Gateway idle cost (~$32/month) avoided. RDS **must not be publicly accessible** — security group enforces ingress from the Fargate task SG only. Backend Fargate may have public ingress only via the ALB on 80/443 and egress only as the SG allows.
-- **Demo-only.** `infra/README.md` documents the teardown recipe and the security tradeoffs; running `terraform destroy` immediately after demo screenshots is the contract.
-- **Region:** `us-east-1`.
-
-### Follow-ups tracked outside M10
-
-- **#13** — record real-provider eval numbers (M9 follow-up). Stays open until keys are wired and `make eval` is run for real.
+- **Code only.** No `terraform apply`. No AWS resource creation. No incurred costs in this PR.
+- **Cost posture.** Public-subnet + no-NAT-Gateway, single-AZ, Fargate `0.25 vCPU / 0.5 GB`, RDS `db.t4g.micro`. NAT Gateway idle cost (~$32/month) avoided. RDS **not publicly accessible** (security-group ingress keyed only to the backend task SG). Idle floor estimate ~$45/month, dominated by ALB + Fargate + RDS.
+- **CD trigger.** `workflow_dispatch` only. The trigger gate is the M10 cost-control mechanism.
+- **Region.** `us-east-1`. Pinned via `var.region` default.
+- **Secrets.** Runtime secrets in SSM Parameter Store (SecureString); written out-of-band so values stay out of Terraform state. CI identity via GitHub OIDC, not long-lived access keys.
+- **Demo-only.** `infra/README.md` documents the teardown recipe (`terraform destroy` immediately after demo screenshots) and every cost/security tradeoff (single-AZ, no Multi-AZ, no auto-scaling, no remote state, plain HTTP on the ALB).
 
 ---
 
@@ -50,7 +48,7 @@
 | M7 | Audit log + HITL | `feat/m07-audit-hitl` | ☑ merged | [#8](https://github.com/div0rce/sentinel/pull/8) | 2026-05-29 |
 | M8 | Frontend | `feat/m08-frontend` | ☑ merged | [#9](https://github.com/div0rce/sentinel/pull/9) | 2026-05-29; perf follow-up [#11](https://github.com/div0rce/sentinel/pull/11) |
 | M9 | Evaluation harness | `feat/m09-eval` | ☑ merged | [#12](https://github.com/div0rce/sentinel/pull/12) | 2026-05-29; real-provider numbers tracked in [#13](https://github.com/div0rce/sentinel/issues/13) |
-| M10 | Deploy (Docker/Terraform/CD) | `feat/m10-deploy` | ◐ in progress | — | started 2026-05-29 |
+| M10 | Deploy (Docker/Terraform/CD) | `feat/m10-deploy` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | 2026-05-29; code-only — no apply ran |
 | M11 | Docs + diagram + demo | `feat/m11-docs-demo` | ☐ | — | |
 
 Status key: ☐ not started · ◐ in progress · ☑ merged
