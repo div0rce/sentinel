@@ -1,0 +1,41 @@
+# nginx config for the M10 demo deployment. Serves the Vite-built SPA and
+# reverse-proxies the backend FastAPI under same-origin paths so the typed
+# API client in src/api.ts can keep using base "" (no CORS).
+#
+# ${BACKEND_URL} is substituted by nginx's official-image entrypoint via
+# envsubst at container start. The ECS task definition sets it to the service
+# discovery DNS for the backend.
+
+server {
+    listen 80 default_server;
+    server_name _;
+
+    # SPA assets
+    root /usr/share/nginx/html;
+    index index.html;
+
+    # Standard SPA routing fallback so React Router routes (e.g. /review)
+    # resolve to the same index.html.
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    # API surface — forwarded to the backend.
+    location ~ ^/(query|extract|review|dashboard|health)(/|$) {
+        proxy_pass         ${BACKEND_URL};
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        # Forward (and accept) the request id so logs are correlated end-to-end.
+        proxy_pass_request_headers on;
+        proxy_read_timeout 60s;
+    }
+
+    # Cache hashed Vite assets aggressively; everything else short.
+    location ~* \.(?:js|css|woff2?|png|jpg|svg)$ {
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}
