@@ -69,8 +69,12 @@ class Settings(BaseSettings):
 
     llm_provider: Literal["anthropic", "fake"] = "anthropic"
     claude_model: str = Field(
-        default="claude-3-5-sonnet-20241022",
-        description="Anthropic model id used when llm_provider='anthropic'.",
+        default="claude-sonnet-4-6",
+        description=(
+            "Anthropic model id used when llm_provider='anthropic'. The 4.6-generation "
+            "ids use a dateless format that is itself a pinned snapshot (per Anthropic's "
+            "model-versioning docs); bumping this default is intentional."
+        ),
     )
     llm_temperature: float = Field(
         default=0.0,
