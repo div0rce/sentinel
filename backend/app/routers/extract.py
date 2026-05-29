@@ -12,6 +12,7 @@ from backend.app.db import get_session
 from backend.app.extract import ExtractionResult, extract_document
 from backend.app.extraction_schemas import list_schemas
 from backend.app.llm import LLMClient, get_llm
+from backend.app.workflow import route_extraction
 
 router = APIRouter(prefix="/extract", tags=["extract"])
 
@@ -84,10 +85,9 @@ def post_extract(
 ) -> ExtractResponse:
     """Extract a structured record for an ingested document.
 
-    The handler delegates all business logic to :func:`extract_document` and only
-    converts the result to the API response shape. On a successful extraction the
-    session is committed so the new ``extractions`` row is durable; failures issue
-    no writes and so need no rollback.
+    The handler delegates extraction to :func:`extract_document`, then immediately
+    routes successful extractions through the deterministic workflow engine before
+    committing. Failures issue no writes and so need no rollback.
     """
     result = extract_document(
         session,
@@ -96,5 +96,8 @@ def post_extract(
         llm=llm,
     )
     if result.status == "ok":
+        if result.extraction_id is None:  # pragma: no cover - defensive invariant
+            raise RuntimeError("successful extraction did not return an extraction_id")
+        route_extraction(session, extraction_id=result.extraction_id)
         session.commit()
     return _to_response(result)

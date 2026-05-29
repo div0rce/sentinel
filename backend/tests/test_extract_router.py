@@ -7,12 +7,13 @@ from collections.abc import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from backend.app.db import get_session
 from backend.app.llm import FakeLLM, LLMClient
 from backend.app.main import app
-from backend.app.models import Chunk, Document
+from backend.app.models import Chunk, Document, WorkflowItem, WorkflowStatus
 from backend.app.routers.extract import _llm_dependency
 
 
@@ -26,14 +27,28 @@ def _seed_document(session: Session, *, hash_suffix: str, text: str) -> tuple[in
     return doc.id, chunk.id
 
 
-def _valid_invoice_json(*, chunk_id: int) -> str:
+def _valid_invoice_json(*, chunk_id: int, total_due_confidence: float = 0.9) -> str:
     return json.dumps(
         {
             "invoice_number": {"value": "R-1", "confidence": 0.9, "source_chunk_id": chunk_id},
             "vendor": {"value": "Acme", "confidence": 0.9, "source_chunk_id": chunk_id},
             "issue_date": {"value": "2026-01-22", "confidence": 0.9, "source_chunk_id": chunk_id},
-            "total_due": {"value": 100.0, "confidence": 0.9, "source_chunk_id": chunk_id},
+            "total_due": {
+                "value": 100.0,
+                "confidence": total_due_confidence,
+                "source_chunk_id": chunk_id,
+            },
         }
+    )
+
+
+def _workflow_items_for_extraction(session: Session, extraction_id: int) -> list[WorkflowItem]:
+    return list(
+        session.scalars(
+            select(WorkflowItem)
+            .where(WorkflowItem.extraction_id == extraction_id)
+            .order_by(WorkflowItem.id)
+        )
     )
 
 
@@ -87,6 +102,49 @@ def test_post_extract_happy_path(client: TestClient, session: Session) -> None:
     assert body["reason"] is None
 
 
+def test_post_extract_routes_low_confidence_result_to_review_queue(
+    client: TestClient, session: Session
+) -> None:
+    doc_id, chunk_id = _seed_document(session, hash_suffix="lo", text="invoice text")
+    client.canned_llm.response = _valid_invoice_json(  # type: ignore[attr-defined]
+        chunk_id=chunk_id,
+        total_due_confidence=0.4,
+    )
+
+    resp = client.post("/extract", json={"document_id": doc_id, "schema_name": "invoice"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "ok"
+    assert body["requires_review"] is True
+    assert body["low_confidence_fields"] == ["total_due"]
+
+    items = _workflow_items_for_extraction(session, body["extraction_id"])
+    assert len(items) == 1
+    assert items[0].status is WorkflowStatus.NEEDS_REVIEW
+
+    queue = client.get("/review").json()["items"]
+    assert [item["id"] for item in queue] == [items[0].id]
+
+
+def test_post_extract_routes_high_confidence_result_out_of_review_queue(
+    client: TestClient, session: Session
+) -> None:
+    doc_id, chunk_id = _seed_document(session, hash_suffix="hi", text="invoice text")
+    client.canned_llm.response = _valid_invoice_json(chunk_id=chunk_id)  # type: ignore[attr-defined]
+
+    resp = client.post("/extract", json={"document_id": doc_id, "schema_name": "invoice"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["status"] == "ok"
+    assert body["requires_review"] is False
+
+    items = _workflow_items_for_extraction(session, body["extraction_id"])
+    assert len(items) == 1
+    assert items[0].status is WorkflowStatus.AUTO_APPROVED
+
+    assert client.get("/review").json() == {"items": []}
+
+
 def test_post_extract_returns_failed_on_malformed_llm_output(
     client: TestClient, session: Session
 ) -> None:
@@ -99,6 +157,7 @@ def test_post_extract_returns_failed_on_malformed_llm_output(
     assert body["status"] == "failed"
     assert body["reason"] == "parse_error"
     assert body["extraction_id"] is None
+    assert session.scalars(select(WorkflowItem)).all() == []
 
 
 def test_post_extract_returns_failed_for_unknown_document(client: TestClient) -> None:

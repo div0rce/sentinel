@@ -204,7 +204,8 @@ Three things to point out to a reviewer:
   calibrated probability — see `docs/evaluation.md`.
 - **Routing.** `requires_review` is `true` because at least one field's
   confidence is below `CONFIDENCE_REVIEW_THRESHOLD` (default `0.75`). The
-  workflow engine has already inserted a `workflow_items` row in
+  `/extract` handler has already routed the successful extraction through the
+  workflow engine, which inserted a `workflow_items` row in
   `needs_review` and written one `audit_events` row tagged
   `actor=system action=workflow.routed`.
 
