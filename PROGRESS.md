@@ -8,37 +8,21 @@
 
 ## Current state
 
-- **Active milestone:** M5 — Guardrails
-- **Status:** complete on branch (started 2026-05-28, completed 2026-05-28); awaiting CI green and human squash-merge
-- **Active branch:** `feat/m05-guardrails` (PR open — see Milestone status)
-- **Last completed milestone:** M4 — Structured extraction (PR #5, merged 2026-05-28)
-- **`make check` passing:** yes locally on a freshly migrated DB (128 tests pass)
-- **Last action:** committed 5 small Conventional Commits for M5 (guardrails module, wiring into ingest/rag/extract + extract response, docs/guardrails.md, unit + integration tests).
-- **Next action:** human squash-merges the M5 PR. After merge, run `/start-milestone 06` to begin M6 (workflow engine).
+- **Active milestone:** M6 — Deterministic, idempotent workflow engine
+- **Status:** in progress (started 2026-05-28)
+- **Active branch:** `feat/m06-workflow-engine`
+- **Last completed milestone:** M5 — Guardrails (PR #6, merged 2026-05-29)
+- **`make check` passing:** baseline green from M5 (128 tests); M6 work in progress
+- **Last action:** ran `/start-milestone 06`, switched to `main`, fast-forwarded, created `feat/m06-workflow-engine`.
+- **Next action:** add pure `workflow.route()` with `RoutingDecision`/`RoutingInputs`, deterministic `compute_idempotency_key()`, `ROUTING_VERSION` constant, and `_check_invariants`; add `apply_routing` idempotent upsert + rejected-to-approved refusal; add `replay(extraction_id)` convenience; satisfy the four DoD test categories (determinism, idempotency, replay, invariants); document in `docs/workflow.md`.
 - **Blockers:** none.
 
-### M5 DoD verification
+### M6 DoD checklist
 
-- [x] **PII patterns redacted before any LLM call and before storage (tested).**
-  Two call sites apply `redact_pii` when `pii_redaction_enabled=True` (default):
-  `ingest.ingest_document` redacts each chunk before `chunks_repo.bulk_insert`
-  (pre-storage), and `rag._build_user_prompt` / `extract._build_user_prompt` redact
-  question + chunk context before the LLM call (pre-LLM). Tests assert that a
-  document containing email, phone, and SSN is stored with `[REDACTED:*]` markers,
-  that the toggle disables the behaviour, that the document hash is keyed on the
-  *original* text either way (re-ingest idempotency holds), and that the prompts
-  observed by `FakeLLM` have PII replaced.
-- [x] **Low-confidence extractions are flagged for review, never auto-applied
-  (tested).** `extract_document` returns `requires_review` and
-  `low_confidence_fields` populated from the guardrail helpers against
-  `settings.confidence_review_threshold`. The flag is informational only —
-  extractions still validate, persist, and return as before. Tests assert the flag
-  is `True` exactly when at least one field is below threshold and that the field
-  list is the offenders in insertion order.
-- [x] **Guardrail behavior is config-driven and documented in `docs/`.**
-  `PII_REDACTION_ENABLED` and `CONFIDENCE_REVIEW_THRESHOLD` are surfaced in
-  `Settings`, `.env.example`, and `docs/guardrails.md` (patterns table, algorithm,
-  wiring diagram, idempotency notes, tuning guidance, testing summary).
+- [ ] **Determinism test:** identical inputs → identical routing across runs.
+- [ ] **Idempotency test:** re-running routing produces no duplicate items / side effects.
+- [ ] **Replay test:** routing can be recomputed from stored inputs.
+- [ ] Invariants enforced and tested (e.g., a rejected item never becomes auto-approved without an event).
 
 ---
 
@@ -51,8 +35,8 @@
 | M2 | Ingestion + embeddings | `feat/m02-ingestion` | ☑ merged | [#3](https://github.com/div0rce/sentinel/pull/3) | 2026-05-28 |
 | M3 | Retrieval + RAG | `feat/m03-rag-query` | ☑ merged | [#4](https://github.com/div0rce/sentinel/pull/4) | 2026-05-28 |
 | M4 | Structured extraction | `feat/m04-extraction` | ☑ merged | [#5](https://github.com/div0rce/sentinel/pull/5) | 2026-05-28 |
-| M5 | Guardrails | `feat/m05-guardrails` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | 2026-05-28 |
-| M6 | Workflow engine | `feat/m06-workflow-engine` | ☐ | — | |
+| M5 | Guardrails | `feat/m05-guardrails` | ☑ merged | [#6](https://github.com/div0rce/sentinel/pull/6) | 2026-05-29 |
+| M6 | Workflow engine | `feat/m06-workflow-engine` | ◐ in progress | — | started 2026-05-28 |
 | M7 | Audit log + HITL | `feat/m07-audit-hitl` | ☐ | — | |
 | M8 | Frontend | `feat/m08-frontend` | ☐ | — | |
 | M9 | Evaluation harness | `feat/m09-eval` | ☐ | — | |
