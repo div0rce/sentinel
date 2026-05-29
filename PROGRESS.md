@@ -9,19 +9,36 @@
 ## Current state
 
 - **Active milestone:** M5 — Guardrails
-- **Status:** in progress (started 2026-05-28)
-- **Active branch:** `feat/m05-guardrails`
+- **Status:** complete on branch (started 2026-05-28, completed 2026-05-28); awaiting CI green and human squash-merge
+- **Active branch:** `feat/m05-guardrails` (PR open — see Milestone status)
 - **Last completed milestone:** M4 — Structured extraction (PR #5, merged 2026-05-28)
-- **`make check` passing:** baseline green from M4 (99 tests); M5 work in progress
-- **Last action:** ran `/start-milestone 05`, switched to `main`, fast-forwarded, created `feat/m05-guardrails`.
-- **Next action:** add `backend/app/guardrails.py` with PII redaction registry and confidence-gating helpers; toggle `pii_redaction_enabled` in Settings; wire redaction into `ingest.py` (pre-storage) and into the pre-LLM prompt builders in `rag.py` and `extract.py`; surface `requires_review` and `low_confidence_fields` from `extract_document` and `POST /extract`; add `docs/guardrails.md`; add tests.
+- **`make check` passing:** yes locally on a freshly migrated DB (128 tests pass)
+- **Last action:** committed 5 small Conventional Commits for M5 (guardrails module, wiring into ingest/rag/extract + extract response, docs/guardrails.md, unit + integration tests).
+- **Next action:** human squash-merges the M5 PR. After merge, run `/start-milestone 06` to begin M6 (workflow engine).
 - **Blockers:** none.
 
-### M5 DoD checklist
+### M5 DoD verification
 
-- [ ] PII patterns redacted before any LLM call and before storage (tested).
-- [ ] Low-confidence extractions are flagged for review, never auto-applied (tested).
-- [ ] Guardrail behavior is config-driven and documented in `docs/`.
+- [x] **PII patterns redacted before any LLM call and before storage (tested).**
+  Two call sites apply `redact_pii` when `pii_redaction_enabled=True` (default):
+  `ingest.ingest_document` redacts each chunk before `chunks_repo.bulk_insert`
+  (pre-storage), and `rag._build_user_prompt` / `extract._build_user_prompt` redact
+  question + chunk context before the LLM call (pre-LLM). Tests assert that a
+  document containing email, phone, and SSN is stored with `[REDACTED:*]` markers,
+  that the toggle disables the behaviour, that the document hash is keyed on the
+  *original* text either way (re-ingest idempotency holds), and that the prompts
+  observed by `FakeLLM` have PII replaced.
+- [x] **Low-confidence extractions are flagged for review, never auto-applied
+  (tested).** `extract_document` returns `requires_review` and
+  `low_confidence_fields` populated from the guardrail helpers against
+  `settings.confidence_review_threshold`. The flag is informational only —
+  extractions still validate, persist, and return as before. Tests assert the flag
+  is `True` exactly when at least one field is below threshold and that the field
+  list is the offenders in insertion order.
+- [x] **Guardrail behavior is config-driven and documented in `docs/`.**
+  `PII_REDACTION_ENABLED` and `CONFIDENCE_REVIEW_THRESHOLD` are surfaced in
+  `Settings`, `.env.example`, and `docs/guardrails.md` (patterns table, algorithm,
+  wiring diagram, idempotency notes, tuning guidance, testing summary).
 
 ---
 
@@ -34,7 +51,7 @@
 | M2 | Ingestion + embeddings | `feat/m02-ingestion` | ☑ merged | [#3](https://github.com/div0rce/sentinel/pull/3) | 2026-05-28 |
 | M3 | Retrieval + RAG | `feat/m03-rag-query` | ☑ merged | [#4](https://github.com/div0rce/sentinel/pull/4) | 2026-05-28 |
 | M4 | Structured extraction | `feat/m04-extraction` | ☑ merged | [#5](https://github.com/div0rce/sentinel/pull/5) | 2026-05-28 |
-| M5 | Guardrails | `feat/m05-guardrails` | ◐ in progress | — | started 2026-05-28 |
+| M5 | Guardrails | `feat/m05-guardrails` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | 2026-05-28 |
 | M6 | Workflow engine | `feat/m06-workflow-engine` | ☐ | — | |
 | M7 | Audit log + HITL | `feat/m07-audit-hitl` | ☐ | — | |
 | M8 | Frontend | `feat/m08-frontend` | ☐ | — | |
@@ -64,6 +81,10 @@ Status key: ☐ not started · ◐ in progress · ☑ merged
 - 2026-05-28 (M3) — Fabricated citation markers trigger refusal with `invalid_citation`; mixed valid+invalid citation outputs are rejected rather than silently dropping invalid ids while returning an answer.
 - 2026-05-28 (M3) — `LLMClient.complete(system, user, max_tokens, temperature)` is single-turn by design. Streaming and tool use can extend the Protocol later without breaking the M3 RAG contract.
 - 2026-05-28 (M3) — `llm_temperature` defaults to `0.0` per CLAUDE.md ("pin temperatures for LLM calls used in eval"). Production may raise it but must record the value alongside any reported metric.
+- 2026-05-28 (M5) — PII redaction patterns are deterministic regexes ordered more-specific-first (EMAIL, SSN, CREDIT_CARD, PHONE, IPV4); replacement is `[REDACTED:KIND]`, chosen so the function is idempotent on a second pass. Defaults `PII_REDACTION_ENABLED=true`.
+- 2026-05-28 (M5) — Pre-storage redaction is applied at ingest before `chunks_repo.bulk_insert`, but the document hash is computed on the *original* text. This keeps re-ingest idempotency intact across toggle flips: same content always hashes the same regardless of redaction state.
+- 2026-05-28 (M5) — Pre-LLM redaction runs in both `rag._build_user_prompt` (question + chunks) and `extract._build_user_prompt` (chunk context). Defense in depth even when chunks were stored raw before M5 was wired up.
+- 2026-05-28 (M5) — Confidence gating in M5 is **flag-only**. `ExtractionResult.requires_review` and `low_confidence_fields` are populated against `CONFIDENCE_REVIEW_THRESHOLD` (default 0.75) but the extraction is still validated, persisted, and returned. Routing happens in M6 / approval in M7; this milestone just labels.
 - 2026-05-28 (M4) — Every extraction-schema field is wrapped in `ExtractedField[T]` (PEP 695 generic Pydantic v2 model, `extra='forbid'`). Confidence + source chunk id are not optional add-ons; the LLM is required to emit them per field, and Pydantic validation rejects anything missing them. Avoids the "we'll add provenance later" trap.
 - 2026-05-28 (M4) — Schemas are registered in a flat `name → class` dict (`extraction_schemas/registry.py`). Adding a schema is a two-line edit; the orchestrator and `POST /extract` resolve by string name. M4 ships one schema (`invoice`); the M9 eval harness can extend the registry.
 - 2026-05-28 (M4) — Extraction failures (`parse_error`, `schema_invalid`, `invalid_citation`, `document_not_found`, `no_chunks`, `unknown_schema`) **never persist** an `extractions` row. Surfacing the typed reason to the caller is enough for M5 guardrails / M7 audit / M9 eval to bucket failures without polluting the success-only table.
