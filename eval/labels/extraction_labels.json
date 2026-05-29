@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "description": "Hand-authored ground truth for invoice extractions, keyed against data/sample/. Values match the synthetic markdown files committed at scripts/gen_synthetic_corpus.py seed=20260528. All data synthetic.",
+  "items": [
+    {
+      "source_filename": "invoice_inv-2026000.md",
+      "schema_name": "invoice",
+      "expected": {
+        "invoice_number": "INV-2026000",
+        "vendor": "Initech Components",
+        "issue_date": "2026-01-22",
+        "total_due": 90006.92
+      }
+    },
+    {
+      "source_filename": "invoice_inv-2026001.md",
+      "schema_name": "invoice",
+      "expected": {
+        "invoice_number": "INV-2026001",
+        "vendor": "Stark Manufacturing",
+        "issue_date": "2026-10-05",
+        "total_due": 25445.96
+      }
+    },
+    {
+      "source_filename": "invoice_inv-2026002.md",
+      "schema_name": "invoice",
+      "expected": {
+        "invoice_number": "INV-2026002",
+        "vendor": "Soylent Mfg.",
+        "issue_date": "2026-01-14",
+        "total_due": 136497.44
+      }
+    },
+    {
+      "source_filename": "invoice_inv-2026003.md",
+      "schema_name": "invoice",
+      "expected": {
+        "invoice_number": "INV-2026003",
+        "vendor": "Initech Components",
+        "issue_date": "2026-04-24",
+        "total_due": 64515.82
+      }
+    },
+    {
+      "source_filename": "invoice_inv-2026004.md",
+      "schema_name": "invoice",
+      "expected": {
+        "invoice_number": "INV-2026004",
+        "vendor": "Wayne Heavy Industries",
+        "issue_date": "2026-11-21",
+        "total_due": 6119.36
+      }
+    }
+  ]
+}

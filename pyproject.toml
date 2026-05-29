@@ -40,7 +40,7 @@ select = ["E", "F", "I", "B", "UP", "SIM", "C4"]
 python_version = "3.12"
 strict = true
 # Never recurse into the virtualenv or future-milestone trees when `mypy .` runs.
-exclude = '(^|/)(\.venv|\.git|node_modules|frontend|infra|eval|dist|build)(/|$)'
+exclude = '(^|/)(\.venv|\.git|node_modules|frontend|infra|dist|build)(/|$)'
 
 # pgvector ships without a py.typed marker; treat as Any rather than failing strict mypy.
 [[tool.mypy.overrides]]

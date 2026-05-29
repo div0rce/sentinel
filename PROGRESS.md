@@ -8,35 +8,27 @@
 
 ## Current state
 
-- **Active milestone:** M8 — Frontend (dashboard + query + review)
+- **Active milestone:** M9 — Evaluation harness (résumé metrics)
 - **Status:** complete on branch (started 2026-05-29, completed 2026-05-29); awaiting CI green and human squash-merge
-- **Active branch:** `feat/m08-frontend` (PR open — see Milestone status)
-- **Last completed milestone:** M7 — Audit log + HITL (PR #8, merged 2026-05-29)
-- **`make check` passing:** yes locally on a freshly migrated DB (177 backend tests pass; 6 frontend Vitest tests pass; tsc lint clean; vite build succeeds)
-- **Last action:** committed the M8 cross-stack work in 9 small Conventional Commits (PROGRESS housekeeping; backend dashboard router + tests; frontend scaffold; API client; Query/Review views; Dashboard + 4 Recharts; smoke tests; CI integration).
-- **Next action:** human squash-merges the M8 PR. After merge, run `/start-milestone 09` to begin M9 (evaluation harness; produces résumé metrics).
+- **Active branch:** `feat/m09-eval` (PR open — see Milestone status)
+- **Last completed milestone:** M8 — Frontend (PR #9, merged 2026-05-29) + perf follow-up (PR #11, merged 2026-05-29)
+- **`make check` passing:** yes locally on a freshly migrated DB (187 backend tests + 7 frontend tests; tsc + vite build clean)
+- **Last action:** committed the M9 work in 3 small Conventional Commits (PROGRESS housekeeping; eval package + labels + RESULTS.md PENDING; tests + docs/evaluation.md + Settings model bump). Verified `make eval` under fake providers prints `n/a` and refuses to publish numbers; 9 asserted-fixture tests prove the scorer + writer end-to-end.
+- **Next action:** human squash-merges the M9 PR. After merge, wire `ANTHROPIC_API_KEY` and `OPENAI_API_KEY`, run `make eval`, and overwrite `eval/RESULTS.md` with real numbers in the immediate follow-up commit. Then `/start-milestone 10` for containerization + Terraform + CD.
 - **Blockers:** none.
 
-### M8 DoD verification
+### M9 DoD verification
 
-- [x] **All three views work against the running backend.** Query view posts to
-  `POST /query` and renders the answer + citations or the deliberate refusal text
-  + reason. Review view loads `GET /review`, renders the queue, and POSTs to
-  `/review/{id}/approve|reject` with a reviewer actor. Dashboard view fetches the
-  four `GET /dashboard/*` endpoints in parallel. Vite dev server proxies these
-  paths to FastAPI on `localhost:8000`. Each view handles loading/empty/error
-  states explicitly.
-- [x] **Dashboard renders the four KPI visuals from real API data.**
-  `VolumeChart`, `CategoriesChart`, `ConfidenceChart`, and `SlaChart` are small
-  Recharts components, each fed by a typed response from the API client. The
-  M1/M4/M7 schema is the single source of truth: backend Pydantic models →
-  TypeScript interfaces in `frontend/src/api.ts` → chart props.
-- [x] **At least a smoke/component test for the query and review flows.**
-  `frontend/src/views/__tests__/Query.test.tsx` (3 tests) covers the answered and
-  refused paths. `frontend/src/views/__tests__/Review.test.tsx` (3 tests) covers
-  the load → approve → optimistic-removal happy path plus the empty state. All
-  6 tests pass under Vitest + jsdom; HTTP is mocked via `vi.stubGlobal('fetch',
-  …)` so no live API calls in CI.
+- [x] **`make eval` runs end-to-end and writes `eval/RESULTS.md` with metrics, k, dataset size, and method.** The CLI in `eval/run.py` prints a one-line summary per metric and writes `eval/RESULTS.md`. Under fake providers (verified locally) every metric prints `n/a (...)` and the file is left as the methodology-only PENDING document — no numbers ship in the tree until a real run.
+- [x] **Methodology is documented well enough to defend verbally in an interview.** `docs/evaluation.md` (224 lines) covers dataset shape, provider pinning, every metric definition (extraction normalization rules, precision@k denominator footnote, lite-faithfulness scope, refusal-rate non-interpretation), the n/a gate, the reproduction recipe, and explicit limits (small dataset, synthetic corpus caveat, no calibration claim, citation-validity vs. true faithfulness).
+- [ ] **Numbers are real (from this run). Record them in `PROGRESS.md` "Decision log" too.** *Pending* — no API keys wired in this session. The harness contract + asserted-fixture pytest is what merges; real numbers land in the immediate follow-up commit once keys are configured.
+
+### M9 design lock-ins (per pre-flight review, all delivered)
+
+- **Metric set.** Extraction: normalized exact-match (trim + casefold strings, ISO date canonicalisation, 0.01 numeric tolerance), micro + macro accuracy, per-field precision/recall (column reported regardless so optional-field schemas later get the right reading without a code change). Retrieval: precision@k (headline) + recall@k + MRR with the precision-cap footnote. RAG: citation-validity rate + answer-cites-relevant rate + answer-substring rate; refusals counted but not interpreted as quality.
+- **Honesty discipline.** Under `EMBEDDINGS_PROVIDER=fake` retrieval and RAG go to `n/a`; under `LLM_PROVIDER=fake` extraction and RAG go to `n/a`. Counts are still emitted because they describe the dataset, not the system. Asserted-fixture pytest tests prove the scorer + writer; nothing in the test path produces a number that could be misread as a quality claim.
+- **What ships.** Harness + 5+6+5 hand-authored synthetic labels + asserted pytest fixtures + methodology-only PENDING `eval/RESULTS.md`. No fabricated numbers in the tree. Real numbers fill the file in the immediate follow-up.
+- **Provider pair.** `claude-sonnet-4-6` (verified against Anthropic docs 2026-05-29 — dateless 4.6-generation IDs are pinned snapshots, not evergreen pointers); `text-embedding-3-small` (1536-dim, schema-canonical); temperature 0.
 
 ---
 
@@ -52,8 +44,8 @@
 | M5 | Guardrails | `feat/m05-guardrails` | ☑ merged | [#6](https://github.com/div0rce/sentinel/pull/6) | 2026-05-29 |
 | M6 | Workflow engine | `feat/m06-workflow-engine` | ☑ merged | [#7](https://github.com/div0rce/sentinel/pull/7) | 2026-05-29 |
 | M7 | Audit log + HITL | `feat/m07-audit-hitl` | ☑ merged | [#8](https://github.com/div0rce/sentinel/pull/8) | 2026-05-29 |
-| M8 | Frontend | `feat/m08-frontend` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | 2026-05-29 |
-| M9 | Evaluation harness | `feat/m09-eval` | ☐ | — | |
+| M8 | Frontend | `feat/m08-frontend` | ☑ merged | [#9](https://github.com/div0rce/sentinel/pull/9) | 2026-05-29; perf follow-up [#11](https://github.com/div0rce/sentinel/pull/11) |
+| M9 | Evaluation harness | `feat/m09-eval` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | 2026-05-29 |
 | M10 | Deploy (Docker/Terraform/CD) | `feat/m10-deploy` | ☐ | — | |
 | M11 | Docs + diagram + demo | `feat/m11-docs-demo` | ☐ | — | |
 

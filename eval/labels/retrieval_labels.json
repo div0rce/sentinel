@@ -1,0 +1,45 @@
+{
+  "version": 1,
+  "description": "Hand-authored retrieval relevance judgments. Each query has zero or more relevant chunks identified by (source_filename, chunk_ord). The harness resolves these to chunk ids by hashing the file and reading the document/chunk rows.",
+  "k": 5,
+  "queries": [
+    {
+      "query": "Initech Components invoice total amount due",
+      "note": "Initech appears on two invoices; both are relevant. Exercises recall@k > precision@k cap.",
+      "relevant": [
+        {"source_filename": "invoice_inv-2026000.md", "chunk_ord": 0},
+        {"source_filename": "invoice_inv-2026003.md", "chunk_ord": 0}
+      ]
+    },
+    {
+      "query": "Stark Manufacturing invoice issued in October 2026",
+      "relevant": [
+        {"source_filename": "invoice_inv-2026001.md", "chunk_ord": 0}
+      ]
+    },
+    {
+      "query": "minor hydraulic leak at Yard 7",
+      "relevant": [
+        {"source_filename": "incident_inc-0700.md", "chunk_ord": 0}
+      ]
+    },
+    {
+      "query": "pressure regulator anomaly Warehouse B",
+      "relevant": [
+        {"source_filename": "incident_inc-0703.md", "chunk_ord": 0}
+      ]
+    },
+    {
+      "query": "supplier onboarding policy approval thresholds",
+      "relevant": [
+        {"source_filename": "policy_pol-200.md", "chunk_ord": 0}
+      ]
+    },
+    {
+      "query": "quality sampling policy review cadence",
+      "relevant": [
+        {"source_filename": "policy_pol-202.md", "chunk_ord": 0}
+      ]
+    }
+  ]
+}

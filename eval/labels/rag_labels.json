@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "description": "Hand-authored RAG labels: each question has the chunks that are sufficient to answer it (the answer should cite at least one of them) and an expected substring the answer text is expected to contain. Substrings are case-insensitive and post-normalization (commas in numbers retained).",
+  "questions": [
+    {
+      "question": "What is the total amount due on the Initech Components invoice issued on 2026-01-22?",
+      "relevant": [
+        {"source_filename": "invoice_inv-2026000.md", "chunk_ord": 0}
+      ],
+      "expected_answer_substring": "90,006.92"
+    },
+    {
+      "question": "Which vendor issued invoice INV-2026001?",
+      "relevant": [
+        {"source_filename": "invoice_inv-2026001.md", "chunk_ord": 0}
+      ],
+      "expected_answer_substring": "Stark Manufacturing"
+    },
+    {
+      "question": "What was the duration of the minor hydraulic leak at Yard 7 (incident INC-0700)?",
+      "relevant": [
+        {"source_filename": "incident_inc-0700.md", "chunk_ord": 0}
+      ],
+      "expected_answer_substring": "69 minutes"
+    },
+    {
+      "question": "Under the supplier onboarding policy, what is the maximum amount a line manager can approve?",
+      "relevant": [
+        {"source_filename": "policy_pol-200.md", "chunk_ord": 0}
+      ],
+      "expected_answer_substring": "$13,000"
+    },
+    {
+      "question": "What is the review cadence specified in the quality sampling policy?",
+      "relevant": [
+        {"source_filename": "policy_pol-202.md", "chunk_ord": 0}
+      ],
+      "expected_answer_substring": "every 12 months"
+    }
+  ]
+}
