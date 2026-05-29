@@ -40,6 +40,7 @@ from typing import Final
 
 from sqlalchemy.orm import Session
 
+from backend.app.audit import emit_workflow_routed
 from backend.app.config import Settings, get_settings
 from backend.app.guardrails import requires_review
 from backend.app.models import WorkflowItem, WorkflowStatus
@@ -81,6 +82,16 @@ class RoutingDecision:
     reason: str
     idempotency_key: str
     routing_version: str = ROUTING_VERSION
+
+
+@dataclass(frozen=True, slots=True)
+class RoutingPersistenceResult:
+    """Outcome of persisting a routing decision."""
+
+    item: WorkflowItem
+    created: bool
+    changed: bool
+    prior_status: WorkflowStatus | None
 
 
 # --- idempotency key ---------------------------------------------------------------
@@ -174,6 +185,18 @@ def apply_routing(
 ) -> WorkflowItem:
     """Insert or update the ``workflow_items`` row for ``decision``.
 
+    This compatibility wrapper preserves the M6 API. Use
+    :func:`apply_routing_result` when callers need to know whether persistence
+    actually created or changed state.
+    """
+    return apply_routing_result(session, extraction_id=extraction_id, decision=decision).item
+
+
+def apply_routing_result(
+    session: Session, *, extraction_id: int, decision: RoutingDecision
+) -> RoutingPersistenceResult:
+    """Insert or update the ``workflow_items`` row for ``decision``.
+
     Idempotency: the row is keyed by ``decision.idempotency_key``. If a row already
     exists with that key:
 
@@ -197,7 +220,12 @@ def apply_routing(
             reason=decision.reason,
         )
         if inserted is not None:
-            return inserted
+            return RoutingPersistenceResult(
+                item=inserted,
+                created=True,
+                changed=False,
+                prior_status=None,
+            )
         existing = workflow_items_repo.get_by_idempotency_key(session, decision.idempotency_key)
         if existing is None:  # pragma: no cover - defensive; conflict winner should be visible
             raise RuntimeError(
@@ -205,23 +233,58 @@ def apply_routing(
             )
 
     if existing.status is decision.status:
-        return existing
+        return RoutingPersistenceResult(
+            item=existing,
+            created=False,
+            changed=False,
+            prior_status=existing.status,
+        )
 
-    if (
-        existing.status is WorkflowStatus.REJECTED
-        and decision.status is WorkflowStatus.AUTO_APPROVED
-    ):
+    prior_status = existing.status
+    if prior_status is WorkflowStatus.REJECTED and decision.status is WorkflowStatus.AUTO_APPROVED:
         raise IllegalTransition(
             f"workflow_items.id={existing.id} is REJECTED; promotion to AUTO_APPROVED "
             "requires an explicit human event (M7), not re-routing"
         )
 
-    updated = workflow_items_repo.set_status(
-        session, existing.id, status=decision.status, reason=decision.reason
+    updated = workflow_items_repo.transition_from_status(
+        session,
+        existing.id,
+        expected_status=prior_status,
+        target_status=decision.status,
+        reason=decision.reason,
     )
-    if updated is None:  # pragma: no cover - defensive; we just looked it up
+    if updated is not None:
+        return RoutingPersistenceResult(
+            item=updated,
+            created=False,
+            changed=True,
+            prior_status=prior_status,
+        )
+
+    session.expire(existing)
+    current = workflow_items_repo.get_by_idempotency_key(session, decision.idempotency_key)
+    if current is None:  # pragma: no cover - defensive; the row existed before the transition
         raise RuntimeError(f"workflow_items.id={existing.id} disappeared during apply_routing")
-    return updated
+    if current.status is decision.status:
+        return RoutingPersistenceResult(
+            item=current,
+            created=False,
+            changed=False,
+            prior_status=current.status,
+        )
+    if (
+        current.status is WorkflowStatus.REJECTED
+        and decision.status is WorkflowStatus.AUTO_APPROVED
+    ):
+        raise IllegalTransition(
+            f"workflow_items.id={current.id} is REJECTED; promotion to AUTO_APPROVED "
+            "requires an explicit human event (M7), not re-routing"
+        )
+    raise RuntimeError(
+        f"workflow_items.id={current.id} changed from {prior_status.value} to "
+        f"{current.status.value} during apply_routing"
+    )
 
 
 # --- replay -------------------------------------------------------------------------
@@ -279,4 +342,10 @@ def route_extraction(
         confidence_review_threshold=settings.confidence_review_threshold,
     )
     decision = route(inputs)
-    return apply_routing(session, extraction_id=extraction_id, decision=decision)
+
+    result = apply_routing_result(session, extraction_id=extraction_id, decision=decision)
+    item = result.item
+
+    if result.created or result.changed:
+        emit_workflow_routed(session, workflow_item=item, prior_status=result.prior_status)
+    return item

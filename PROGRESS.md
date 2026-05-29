@@ -8,35 +8,34 @@
 
 ## Current state
 
-- **Active milestone:** M6 — Deterministic, idempotent workflow engine
-- **Status:** complete on branch (started 2026-05-28, completed 2026-05-29); awaiting CI green and human squash-merge
-- **Active branch:** `feat/m06-workflow-engine` (PR open — see Milestone status)
-- **Last completed milestone:** M5 — Guardrails (PR #6, merged 2026-05-29)
-- **`make check` passing:** yes locally on a freshly migrated DB (150 tests pass)
-- **Last action:** committed 4 small Conventional Commits for M6 (workflow engine module, 22 DoD tests, docs/workflow.md, PROGRESS housekeeping).
-- **Next action:** human squash-merges the M6 PR. After merge, run `/start-milestone 07` to begin M7 (audit log + HITL).
+- **Active milestone:** M7 — Immutable audit log + human-in-the-loop approval
+- **Status:** complete on branch (started 2026-05-29, completed 2026-05-29); awaiting CI green and human squash-merge
+- **Active branch:** `feat/m07-audit-hitl` (PR open — see Milestone status)
+- **Last completed milestone:** M6 — Workflow engine (PR #7, merged 2026-05-29)
+- **`make check` passing:** yes locally on a freshly migrated DB (163 tests pass)
+- **Last action:** committed 4 small Conventional Commits for M7 (PROGRESS housekeeping; audit.py + wiring + review router; tests; docs).
+- **Next action:** human squash-merges the M7 PR. After merge, run `/start-milestone 08` to begin M8 (frontend dashboard + query + review UI).
 - **Blockers:** none.
 
-### M6 DoD verification
+### M7 DoD verification
 
-- [x] **Determinism test:** identical inputs → identical routing across runs.
-  `route()` is a pure function; `test_workflow.py::test_route_is_a_pure_function_of_inputs`
-  asserts `route(x) == route(x) == route(equivalent_x)`. Insertion order of
-  `field_confidence` does not matter.
-- [x] **Idempotency test:** re-running routing produces no duplicate items / side
-  effects. `apply_routing` upserts by deterministic SHA-256 key
-  (`extraction_id|schema_name|routing_version`); the test verifies that three
-  consecutive calls produce **one** row (verified at the SQL level via
-  `SELECT * FROM workflow_items WHERE idempotency_key = …`), and that re-running
-  with a different decision updates the same row.
-- [x] **Replay test:** routing can be recomputed from stored inputs. `replay()`
-  reads the persisted `extractions` row and runs `route()` against it. Tests
-  cover happy path, low-confidence path, and unknown-id `KeyError`.
-- [x] **Invariants enforced and tested.** `_check_invariants` raises on
-  `AUTO_APPROVED + low confidence` and on `non-REJECTED + invalid_citation flag`.
-  `apply_routing` refuses `REJECTED → AUTO_APPROVED` with `IllegalTransition`
-  (M7's audit-driven `POST /review/{id}/approve` is the only legitimate path);
-  `REJECTED → NEEDS_REVIEW` is allowed (documented in `docs/workflow.md`).
+- [x] **Every model suggestion and human decision writes exactly one audit event
+  (tested).** `extract.extract_document` emits `extraction.created` after
+  persistence; `workflow.route_extraction` captures the prior status and emits
+  `workflow.routed` only when `apply_routing` actually changed state (so an
+  idempotent re-route emits zero events). The `/review` routes emit exactly one
+  `review.approved` / `review.rejected` per successful 200; failures (404, 409,
+  422) emit nothing. Tests pin the counts at every clause.
+- [x] **Approve/reject transitions are valid and audited.** `POST /review/{id}/
+  approve|reject` only accept items currently in `needs_review` (409 otherwise);
+  set the new status and emit an audit event with the human's `actor` and
+  optional `note`; return the new status and the persisted `audit_event_id`.
+- [x] **State-from-replay test:** current `workflow_items` state is
+  reconstructable from `audit_events`. `replay_workflow_state(session,
+  workflow_item_id)` walks every event for the target oldest-first and returns
+  the final `WorkflowStatus`. `test_state_from_replay_reconstructs_current_status`
+  drives a five-event lifecycle (insert → route transition → reject → reopen →
+  approve) and asserts the replayed status equals the persisted one.
 
 ---
 
@@ -50,8 +49,8 @@
 | M3 | Retrieval + RAG | `feat/m03-rag-query` | ☑ merged | [#4](https://github.com/div0rce/sentinel/pull/4) | 2026-05-28 |
 | M4 | Structured extraction | `feat/m04-extraction` | ☑ merged | [#5](https://github.com/div0rce/sentinel/pull/5) | 2026-05-28 |
 | M5 | Guardrails | `feat/m05-guardrails` | ☑ merged | [#6](https://github.com/div0rce/sentinel/pull/6) | 2026-05-29 |
-| M6 | Workflow engine | `feat/m06-workflow-engine` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | 2026-05-28 → 2026-05-29 |
-| M7 | Audit log + HITL | `feat/m07-audit-hitl` | ☐ | — | |
+| M6 | Workflow engine | `feat/m06-workflow-engine` | ☑ merged | [#7](https://github.com/div0rce/sentinel/pull/7) | 2026-05-29 |
+| M7 | Audit log + HITL | `feat/m07-audit-hitl` | ◐ complete on branch (PR open) | _filled in after `gh pr create`_ | 2026-05-29 |
 | M8 | Frontend | `feat/m08-frontend` | ☐ | — | |
 | M9 | Evaluation harness | `feat/m09-eval` | ☐ | — | |
 | M10 | Deploy (Docker/Terraform/CD) | `feat/m10-deploy` | ☐ | — | |
@@ -87,6 +86,12 @@ Status key: ☐ not started · ◐ in progress · ☑ merged
 - 2026-05-29 (M6) — Idempotency-key recipe is `sha256(f"{extraction_id}|{schema_name}|{routing_version}")`. Confidence and guardrail flags are intentionally NOT in the key — they legitimately change between routing calls, and including them would break re-run idempotency. `ROUTING_VERSION` (currently `"v1"`) is a code-level constant; bumping it triggers re-routing of every previously routed extraction.
 - 2026-05-29 (M6) — Rule precedence (top-down): `invalid_citation` flag → `rejected`; any field below threshold → `needs_review`; any other guardrail flag → `needs_review`; otherwise → `auto_approved`. Rejection is terminal at routing time (rule 1 beats rule 2). The two invariants `_check_invariants` enforces are pinned by tests so a rule regression fails loudly.
 - 2026-05-29 (M6) — `apply_routing` allows `REJECTED → NEEDS_REVIEW` demotion but refuses `REJECTED → AUTO_APPROVED` promotion with `IllegalTransition`. Promotion off rejection requires a human event; that path arrives with M7's `POST /review/{id}/approve`.
+- 2026-05-29 (M7) — Audit-action catalogue: `extraction.created`, `workflow.routed`, `review.approved`, `review.rejected`. Strings, not an enum, so future actions land without an enum-type DB migration. Test `test_audit_action_catalogue_is_stable` pins the set; adding a new action requires an explicit decision.
+- 2026-05-29 (M7) — Emission posture: `extract.extract_document` emits exactly one `extraction.created` after persistence; `workflow.route_extraction` emits `workflow.routed` only when `apply_routing` changed state (idempotent re-routes do not double-emit); the review routes emit exactly one event per successful 200 (4xx responses emit nothing).
+- 2026-05-29 (M7) — `replay_workflow_state` walks `audit_events` oldest-first for a given `(target_type='workflow_item', target_id=id)` and returns the final status from `after.status`. The five-event lifecycle test pins the contract that the audit log alone reproduces `workflow_items.status`.
+- 2026-05-29 (M7) — The review router's transition surface is intentionally narrow: only `needs_review → auto_approved` and `needs_review → rejected`. Supervisor reversals (e.g., reopening a rejected item) live behind a future, separately audited action and are out of scope for M7.
+- 2026-05-29 (M7) — `workflow.routed` audit events are emitted from explicit persistence outcomes only: actual workflow-item creates or actual status changes. Losing an idempotent insert race returns the winning row and emits no duplicate audit event.
+- 2026-05-29 (M7) — Review decisions use a conditional compare-and-set transition from `needs_review`; failed conditional transitions return 409 and emit no audit event, preventing concurrent approve/reject requests from overwriting each other.
 - 2026-05-29 (M6) — Workflow idempotent persistence uses a PostgreSQL `INSERT ... ON CONFLICT (idempotency_key) DO NOTHING RETURNING id` path, so concurrent workers racing after a stale read converge on the same row without surfacing `IntegrityError`.
 - 2026-05-28 (M4) — Every extraction-schema field is wrapped in `ExtractedField[T]` (PEP 695 generic Pydantic v2 model, `extra='forbid'`). Confidence + source chunk id are not optional add-ons; the LLM is required to emit them per field, and Pydantic validation rejects anything missing them. Avoids the "we'll add provenance later" trap.
 - 2026-05-28 (M4) — Schemas are registered in a flat `name → class` dict (`extraction_schemas/registry.py`). Adding a schema is a two-line edit; the orchestrator and `POST /extract` resolve by string name. M4 ships one schema (`invoice`); the M9 eval harness can extend the registry.

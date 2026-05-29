@@ -36,6 +36,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
+from backend.app.audit import emit_extraction_created
 from backend.app.config import Settings, get_settings
 from backend.app.extraction_schemas import ExtractedField, get_schema
 from backend.app.guardrails import (
@@ -279,6 +280,9 @@ def extract_document(
         field_citations=citations,
         model_name=response.model,
     )
+
+    # 9. audit: every model suggestion writes exactly one event (M7).
+    emit_extraction_created(session, extraction=extraction)
 
     return ExtractionResult(
         status="ok",

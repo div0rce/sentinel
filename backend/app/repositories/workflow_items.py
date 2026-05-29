@@ -8,7 +8,7 @@ this module stays a thin SQL adapter.
 
 from __future__ import annotations
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -112,3 +112,25 @@ def set_status(
         item.reason = reason
     session.flush()
     return item
+
+
+def transition_from_status(
+    session: Session,
+    item_id: int,
+    *,
+    expected_status: WorkflowStatus,
+    target_status: WorkflowStatus,
+    reason: str | None = None,
+) -> WorkflowItem | None:
+    """Atomically transition an item only if it is currently in ``expected_status``.
+
+    Returns the updated row when the compare-and-set transition succeeds, or
+    ``None`` when the item is missing or no longer has the expected status.
+    """
+    stmt = (
+        update(WorkflowItem)
+        .where(WorkflowItem.id == item_id, WorkflowItem.status == expected_status)
+        .values(status=target_status, reason=reason)
+        .returning(WorkflowItem)
+    )
+    return session.execute(stmt, execution_options={"populate_existing": True}).scalar_one_or_none()
