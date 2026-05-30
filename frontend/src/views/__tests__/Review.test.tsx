@@ -81,8 +81,9 @@ describe("Review view", () => {
     });
     // Second item still there.
     expect(screen.getByTestId("review-item-2")).toBeInTheDocument();
-    // Status flash visible.
+    // Status flash visible, surfacing the real audit-event id from the decision response.
     expect(screen.getByRole("status")).toHaveTextContent(/Item #1 approved/i);
+    expect(screen.getByRole("status")).toHaveTextContent(/audit event #99/i);
 
     // Verify the fetch payload was the approve endpoint with the actor body.
     const lastCall = fetchMock.mock.calls.at(-1);
