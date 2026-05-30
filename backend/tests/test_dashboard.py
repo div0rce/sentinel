@@ -230,6 +230,110 @@ def test_sla_rejects_invalid_threshold(client: TestClient) -> None:
     assert client.get("/dashboard/sla?threshold_hours=10000").status_code == 422
 
 
+# --- /dashboard/kpis ----------------------------------------------------------------
+
+
+def test_kpis_empty_corpus(client: TestClient) -> None:
+    """No rows: four KPIs, honest zeros, and no fabricated deltas."""
+    resp = client.get("/dashboard/kpis")
+    assert resp.status_code == 200
+    body = resp.json()
+    kpis = {k["key"]: k for k in body["kpis"]}
+    assert set(kpis) == {"docs_ingested", "auto_approved_rate", "avg_confidence", "sla_at_risk"}
+
+    assert kpis["docs_ingested"]["display"] == "0"
+    assert kpis["auto_approved_rate"]["display"] == "0.0%"
+    assert kpis["avg_confidence"]["display"] == "—"  # em dash: no fields, no fake number
+    assert kpis["sla_at_risk"]["display"] == "0 / 0"
+
+    # Deltas that need a comparison window are omitted (None), not invented.
+    assert kpis["auto_approved_rate"]["delta"] is None
+    assert kpis["avg_confidence"]["delta"] is None
+    assert all(k["direction"] == "flat" for k in kpis.values())
+
+
+def test_kpis_values_and_formatting(client: TestClient, session: Session) -> None:
+    now = datetime.now(UTC)
+    # Two extractions (=> two documents) created now; per-field confidences mean to 0.800.
+    _make_extraction(
+        session, hash_suffix="kv1", field_confidence={"a": 0.80, "b": 0.90}, created_at=now
+    )
+    ex2 = _make_extraction(session, hash_suffix="kv2", field_confidence={"a": 0.70}, created_at=now)
+    # Workflow mix: 3 auto-approved + 1 needs_review => 75.0% auto-approved.
+    for i in range(3):
+        _make_workflow_item(
+            session, extraction_id=ex2.id, idem_suffix=f"a{i}", status=WorkflowStatus.AUTO_APPROVED
+        )
+    _make_workflow_item(
+        session, extraction_id=ex2.id, idem_suffix="nr", status=WorkflowStatus.NEEDS_REVIEW
+    )
+
+    kpis = {k["key"]: k for k in client.get("/dashboard/kpis").json()["kpis"]}
+
+    assert kpis["docs_ingested"]["value"] == 2.0
+    assert kpis["docs_ingested"]["display"] == "2"
+    assert kpis["docs_ingested"]["delta"] == 2.0  # both landed within the last 24h
+    assert kpis["docs_ingested"]["delta_display"] == "+2 (24h)"
+
+    assert kpis["avg_confidence"]["value"] == pytest.approx(0.8)
+    assert kpis["avg_confidence"]["display"] == "0.800"
+
+    assert kpis["auto_approved_rate"]["value"] == pytest.approx(0.75)
+    assert kpis["auto_approved_rate"]["display"] == "75.0%"
+
+    # The single needs_review item is age ~0, so it is not yet over the 24h threshold.
+    assert kpis["sla_at_risk"]["display"] == "0 / 1"
+
+
+def test_kpis_auto_approved_delta(client: TestClient, session: Session) -> None:
+    """The auto-approved delta compares the last-24h cohort against the preceding 24h."""
+    ext = _make_extraction(session, hash_suffix="kad", field_confidence={"a": 0.9})
+    # Preceding 24–48h window: 2 items, 1 auto-approved => rate 0.50.
+    _make_workflow_item(
+        session,
+        extraction_id=ext.id,
+        idem_suffix="p1",
+        status=WorkflowStatus.AUTO_APPROVED,
+        age_hours=36,
+    )
+    _make_workflow_item(
+        session,
+        extraction_id=ext.id,
+        idem_suffix="p2",
+        status=WorkflowStatus.NEEDS_REVIEW,
+        age_hours=36,
+    )
+    # Last-24h window: 4 items, 3 auto-approved => rate 0.75.
+    for i in range(3):
+        _make_workflow_item(
+            session,
+            extraction_id=ext.id,
+            idem_suffix=f"l{i}",
+            status=WorkflowStatus.AUTO_APPROVED,
+            age_hours=2,
+        )
+    _make_workflow_item(
+        session,
+        extraction_id=ext.id,
+        idem_suffix="lnr",
+        status=WorkflowStatus.NEEDS_REVIEW,
+        age_hours=2,
+    )
+
+    auto = next(
+        k for k in client.get("/dashboard/kpis").json()["kpis"] if k["key"] == "auto_approved_rate"
+    )
+    assert auto["delta"] == pytest.approx(0.25)  # 0.75 - 0.50
+    assert auto["delta_display"] == "+25.0pp"
+    assert auto["direction"] == "up"
+
+
+def test_kpis_rejects_invalid_threshold(client: TestClient) -> None:
+    assert client.get("/dashboard/kpis?threshold_hours=0").status_code == 422
+    assert client.get("/dashboard/kpis?threshold_hours=-1").status_code == 422
+    assert client.get("/dashboard/kpis?threshold_hours=10000").status_code == 422
+
+
 # --- shape sanity (frontend depends on these keys) ----------------------------------
 
 
@@ -243,6 +347,18 @@ def test_response_keys_match_frontend_contract(client: TestClient) -> None:
     sla = client.get("/dashboard/sla").json()
     assert set(sla.keys()) == {"threshold_hours", "total_needs_review", "over_sla", "buckets"}
     assert set(sla["buckets"][0].keys()) == {"label", "count"}
+    kpis = client.get("/dashboard/kpis").json()
+    assert set(kpis.keys()) == {"kpis", "threshold_hours", "generated_at"}
+    assert len(kpis["kpis"]) == 4
+    assert set(kpis["kpis"][0].keys()) == {
+        "key",
+        "label",
+        "value",
+        "display",
+        "delta",
+        "delta_display",
+        "direction",
+    }
 
 
 # --- silence the unused-import warning on Chunk (used by other test modules) -------
