@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { Check, RotateCcw, ShieldCheck, X } from "lucide-react";
 import {
   approveReview,
   ApiError,
@@ -22,6 +23,7 @@ export function Review(): JSX.Element {
 
   const refresh = useCallback(async () => {
     setState({ kind: "loading" });
+    setFlash(null);
     try {
       const queue = await getReviewQueue({ limit: 50 });
       setState({ kind: "loaded", items: queue.items });
@@ -36,7 +38,8 @@ export function Review(): JSX.Element {
   }, [refresh]);
 
   async function decide(item: ReviewItem, decision: "approve" | "reject"): Promise<void> {
-    if (!actor.trim()) {
+    const reviewer = actor.trim();
+    if (!reviewer) {
       setFlash("Reviewer name is required.");
       return;
     }
@@ -44,14 +47,17 @@ export function Review(): JSX.Element {
     setFlash(null);
     try {
       const action = decision === "approve" ? approveReview : rejectReview;
-      await action(item.id, { actor: actor.trim() });
+      const resp = await action(item.id, { actor: reviewer });
       // Optimistic: drop the row from the local list rather than refetching.
       setState((prev) =>
         prev.kind === "loaded"
           ? { kind: "loaded", items: prev.items.filter((it) => it.id !== item.id) }
           : prev,
       );
-      setFlash(`Item #${item.id} ${decision === "approve" ? "approved" : "rejected"}.`);
+      const verb = decision === "approve" ? "approved" : "rejected";
+      setFlash(
+        `✓ Item #${item.id} ${verb} · by ${reviewer} · audit event #${resp.audit_event_id} written`,
+      );
     } catch (err) {
       const message = err instanceof ApiError ? err.message : "Network error.";
       setFlash(`Failed to ${decision}: ${message}`);
@@ -60,30 +66,51 @@ export function Review(): JSX.Element {
     }
   }
 
+  const pending = state.kind === "loaded" ? state.items.length : 0;
+
   return (
     <section aria-labelledby="review-heading">
-      <h2 id="review-heading">Review queue</h2>
-      <div className="row" style={{ marginBottom: "0.75rem" }}>
-        <label htmlFor="actor-input" className="muted">
-          Reviewer:
+      <div className="view-head">
+        <p className="eyebrow">Human-in-the-loop · append-only audit</p>
+        <h1 id="review-heading" className="view-title">
+          Review queue
+        </h1>
+        <p className="view-sub">
+          Fields below the auto-approve confidence threshold (0.90). Each decision is idempotent
+          and writes one append-only audit event.
+        </p>
+      </div>
+
+      <div className="queue-bar">
+        <label htmlFor="actor-input" className="field-label" style={{ margin: 0 }}>
+          Reviewer
         </label>
         <input
           id="actor-input"
+          type="text"
           aria-label="reviewer"
           value={actor}
           onChange={(e) => setActor(e.target.value)}
-          style={{ maxWidth: "20rem" }}
           maxLength={256}
         />
-        <button onClick={() => void refresh()} disabled={state.kind === "loading"}>
+        <span className="muted mono" style={{ marginLeft: "auto", fontSize: "var(--text-xs)" }}>
+          {pending} pending
+        </span>
+        <button
+          type="button"
+          className="btn sm"
+          onClick={() => void refresh()}
+          disabled={state.kind === "loading"}
+        >
+          <RotateCcw size={14} aria-hidden />
           Refresh
         </button>
       </div>
 
       {flash && (
-        <p className="muted" role="status" style={{ marginBottom: "0.75rem" }}>
+        <div className="flash" role="status">
           {flash}
-        </p>
+        </div>
       )}
 
       {state.kind === "loading" && <p className="muted">Loading queue…</p>}
@@ -93,46 +120,55 @@ export function Review(): JSX.Element {
         </div>
       )}
       {state.kind === "loaded" && state.items.length === 0 && (
-        <div className="empty">Nothing awaiting review. The queue is empty.</div>
+        <div className="empty">
+          <ShieldCheck size={26} aria-hidden />
+          <div>Nothing awaiting review. The queue is empty.</div>
+        </div>
       )}
-      {state.kind === "loaded" && state.items.length > 0 && (
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {state.items.map((item) => (
-            <li key={item.id} className="card" data-testid={`review-item-${item.id}`}>
-              <div className="row" style={{ justifyContent: "space-between" }}>
-                <div>
-                  <h3>
-                    Workflow item #{item.id}{" "}
-                    <span className={`badge ${item.status}`}>{item.status}</span>
-                  </h3>
-                  <p className="muted">
-                    extraction #{item.extraction_id} · key{" "}
-                    <code>{item.idempotency_key.slice(0, 12)}…</code>
-                    {item.reason ? ` · reason ${item.reason}` : null}
-                  </p>
-                  <p className="muted">created {item.created_at}</p>
-                </div>
-                <div className="row">
-                  <button
-                    className="primary"
-                    disabled={busyId === item.id}
-                    onClick={() => void decide(item, "approve")}
-                  >
-                    Approve
-                  </button>
-                  <button
-                    className="danger"
-                    disabled={busyId === item.id}
-                    onClick={() => void decide(item, "reject")}
-                  >
-                    Reject
-                  </button>
+      {state.kind === "loaded" &&
+        state.items.map((item) => (
+          <div className="card" key={item.id} data-testid={`review-item-${item.id}`}>
+            <div className="review-item">
+              <div>
+                <h3>
+                  <span className="code">workflow #{item.id}</span>
+                  <span className={`badge ${item.status}`}>{item.status}</span>
+                </h3>
+                <div className="meta">
+                  <div className="kv">
+                    extraction <span className="mono">#{item.extraction_id}</span>
+                    <span className="sep">·</span>
+                    key <span className="mono">{item.idempotency_key.slice(0, 16)}…</span>
+                  </div>
+                  <div className="kv">
+                    created <span className="mono">{item.created_at}</span>
+                  </div>
+                  {item.reason && <div className="kv reason">{item.reason}</div>}
                 </div>
               </div>
-            </li>
-          ))}
-        </ul>
-      )}
+              <div className="review-actions">
+                <button
+                  type="button"
+                  className="btn primary sm"
+                  disabled={busyId === item.id}
+                  onClick={() => void decide(item, "approve")}
+                >
+                  <Check size={14} aria-hidden />
+                  Approve
+                </button>
+                <button
+                  type="button"
+                  className="btn danger sm"
+                  disabled={busyId === item.id}
+                  onClick={() => void decide(item, "reject")}
+                >
+                  <X size={14} aria-hidden />
+                  Reject
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
     </section>
   );
 }
