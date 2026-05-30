@@ -3,8 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="color-scheme" content="dark light" />
+    <link rel="icon" href="/brand/sentinel-mark.svg" />
     <title>Sentinel</title>
+    <script>
+      // Set the theme before first paint so the persisted choice never flashes.
+      // Default is dark; mirrored by the useTheme hook in src/theme.ts.
+      (function () {
+        try {
+          document.documentElement.setAttribute(
+            "data-theme",
+            localStorage.getItem("sentinel-theme") || "dark",
+          );
+        } catch (e) {
+          document.documentElement.setAttribute("data-theme", "dark");
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
