@@ -57,7 +57,9 @@ describe("Query view", () => {
     await user.click(screen.getByRole("button", { name: /^ask$/i }));
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /^answer$/i })).toBeInTheDocument();
+      // The answer heading now leads with a `cited` status badge, so the accessible
+      // name is "cited Answer" — match on the substring rather than the whole string.
+      expect(screen.getByRole("heading", { name: /answer/i })).toBeInTheDocument();
     });
     expect(screen.getByText(/Acme Synthetic Co\./)).toBeInTheDocument();
     expect(screen.getByText(/Citations \(1\)/)).toBeInTheDocument();
@@ -76,7 +78,8 @@ describe("Query view", () => {
     await user.type(screen.getByRole("textbox"), "Anything?");
     await user.click(screen.getByRole("button", { name: /^ask$/i }));
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: /^refused$/i })).toBeInTheDocument();
+      // Heading leads with a `refused` badge: accessible name is "refused Refused".
+      expect(screen.getByRole("heading", { name: /refused/i })).toBeInTheDocument();
     });
     expect(screen.getByText(/no_support/)).toBeInTheDocument();
   });

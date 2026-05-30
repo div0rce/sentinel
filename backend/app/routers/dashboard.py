@@ -18,7 +18,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from backend.app.db import get_session
-from backend.app.models import Extraction, WorkflowItem, WorkflowStatus
+from backend.app.models import Document, Extraction, WorkflowItem, WorkflowStatus
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -77,11 +77,69 @@ class SlaResponse(BaseModel):
     buckets: list[SlaBucket]
 
 
+class Kpi(BaseModel):
+    """One operational KPI tile for the dashboard header.
+
+    ``value``/``delta`` are the raw numbers (stable to assert on and to re-format);
+    ``display``/``delta_display`` are the server-rendered strings the UI shows verbatim.
+    ``direction`` drives the up/down/flat color (up=success, down=danger, flat=muted) and
+    is keyed purely off the sign of ``delta`` — matching the design system's KPI semantics.
+    """
+
+    key: str
+    label: str
+    value: float
+    display: str
+    delta: float | None = None
+    delta_display: str | None = None
+    direction: Literal["up", "down", "flat"]
+
+
+class KpiResponse(BaseModel):
+    kpis: list[Kpi]
+    threshold_hours: int = Field(ge=1)
+    generated_at: str  # ISO-8601 UTC; lets the UI footnote show a real refresh time
+
+
 # --- helpers ------------------------------------------------------------------------
 
 
 def _utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def _direction(delta: float | None, *, eps: float = 1e-9) -> Literal["up", "down", "flat"]:
+    """Color direction from the sign of a delta; ``None`` or near-zero reads as flat."""
+    if delta is None or abs(delta) <= eps:
+        return "flat"
+    return "up" if delta > 0 else "down"
+
+
+def _mean(values: list[float]) -> float | None:
+    """Arithmetic mean, or ``None`` for an empty list (so callers can omit, not fake, it)."""
+    return sum(values) / len(values) if values else None
+
+
+def _workflow_counts(
+    session: Session, *, since: datetime | None = None, until: datetime | None = None
+) -> tuple[int, int]:
+    """Return ``(auto_approved, total)`` workflow-item counts in the optional ``[since, until)``
+    creation window (open bounds when an endpoint is ``None``)."""
+    clauses = []
+    if since is not None:
+        clauses.append(WorkflowItem.created_at >= since)
+    if until is not None:
+        clauses.append(WorkflowItem.created_at < until)
+    total_stmt = select(func.count(WorkflowItem.id))
+    approved_stmt = select(func.count(WorkflowItem.id)).where(
+        WorkflowItem.status == WorkflowStatus.AUTO_APPROVED
+    )
+    if clauses:
+        total_stmt = total_stmt.where(*clauses)
+        approved_stmt = approved_stmt.where(*clauses)
+    total = int(session.scalar(total_stmt) or 0)
+    approved = int(session.scalar(approved_stmt) or 0)
+    return approved, total
 
 
 # Bucket boundaries for confidence: ten 0.1-wide bins covering [0.0, 1.0]. Values
@@ -231,6 +289,108 @@ def get_sla(
         buckets=[
             SlaBucket(label=label, count=bucket_counts[label]) for label, _, _ in _SLA_BUCKET_DEFS
         ],
+    )
+
+
+@router.get("/kpis", response_model=KpiResponse)
+def get_kpis(
+    session: Annotated[Session, Depends(get_session)],
+    threshold_hours: Annotated[int, Query(ge=1, le=720)] = 24,
+) -> KpiResponse:
+    """Four operational KPIs for the dashboard header.
+
+    Every figure is derived from real rows. Deltas compare the last 24h against the
+    preceding 24h and are reported as ``None`` whenever a comparison window has no data,
+    so the UI shows nothing fabricated. ``generated_at`` is a real UTC timestamp.
+    """
+    now = _utcnow()
+    last_24h = now - timedelta(hours=24)
+    prev_24h = now - timedelta(hours=48)
+
+    # 1) Docs ingested — total, plus how many landed in the last 24h.
+    total_docs = int(session.scalar(select(func.count(Document.id))) or 0)
+    docs_24h = int(
+        session.scalar(select(func.count(Document.id)).where(Document.created_at >= last_24h)) or 0
+    )
+    docs_kpi = Kpi(
+        key="docs_ingested",
+        label="Docs ingested",
+        value=float(total_docs),
+        display=f"{total_docs:,}",
+        delta=float(docs_24h),
+        delta_display=f"+{docs_24h} (24h)",
+        direction=_direction(float(docs_24h)),
+    )
+
+    # 2) Auto-approved rate — share of all workflow items auto-approved, with the delta in
+    #    percentage points between the last-24h and preceding-24h cohorts.
+    approved_all, total_all = _workflow_counts(session)
+    rate_all = approved_all / total_all if total_all else 0.0
+    approved_last, total_last = _workflow_counts(session, since=last_24h)
+    approved_prev, total_prev = _workflow_counts(session, since=prev_24h, until=last_24h)
+    rate_delta: float | None = None
+    if total_last and total_prev:
+        rate_delta = (approved_last / total_last) - (approved_prev / total_prev)
+    auto_kpi = Kpi(
+        key="auto_approved_rate",
+        label="Auto-approved",
+        value=rate_all,
+        display=f"{rate_all * 100:.1f}%",
+        delta=rate_delta,
+        delta_display=(f"{rate_delta * 100:+.1f}pp" if rate_delta is not None else None),
+        direction=_direction(rate_delta),
+    )
+
+    # 3) Avg confidence — mean of every per-field confidence value, with a 24h-vs-prior delta.
+    rows = session.execute(select(Extraction.created_at, Extraction.field_confidence)).all()
+    all_vals: list[float] = []
+    last_vals: list[float] = []
+    prev_vals: list[float] = []
+    for created_at, field_confidence in rows:
+        if not isinstance(field_confidence, dict):
+            continue
+        for value in field_confidence.values():
+            try:
+                v = float(value)
+            except (TypeError, ValueError):
+                continue
+            all_vals.append(v)
+            if created_at is None:
+                continue
+            if created_at >= last_24h:
+                last_vals.append(v)
+            elif prev_24h <= created_at < last_24h:
+                prev_vals.append(v)
+    mean_all = _mean(all_vals)
+    mean_last = _mean(last_vals)
+    mean_prev = _mean(prev_vals)
+    conf_delta = mean_last - mean_prev if mean_last is not None and mean_prev is not None else None
+    conf_kpi = Kpi(
+        key="avg_confidence",
+        label="Avg confidence",
+        value=mean_all if mean_all is not None else 0.0,
+        display=f"{mean_all:.3f}" if mean_all is not None else "—",
+        delta=conf_delta,
+        delta_display=(f"{conf_delta:+.3f}" if conf_delta is not None else None),
+        direction=_direction(conf_delta),
+    )
+
+    # 4) SLA at risk — items past the threshold over the needs-review total (reuses /sla).
+    sla = get_sla(session, threshold_hours=threshold_hours)
+    sla_kpi = Kpi(
+        key="sla_at_risk",
+        label="SLA at risk",
+        value=float(sla.over_sla),
+        display=f"{sla.over_sla} / {sla.total_needs_review}",
+        delta=None,
+        delta_display=f"threshold {threshold_hours}h",
+        direction="flat",
+    )
+
+    return KpiResponse(
+        kpis=[docs_kpi, auto_kpi, conf_kpi, sla_kpi],
+        threshold_hours=threshold_hours,
+        generated_at=now.isoformat(),
     )
 
 

@@ -39,6 +39,8 @@ describe("App navigation", () => {
         let body: unknown;
         if (url.includes("/review")) {
           body = { items: [] };
+        } else if (url.includes("/dashboard/kpis")) {
+          body = { kpis: [], threshold_hours: 24, generated_at: "2026-05-29T00:00:00Z" };
         } else if (url.includes("/dashboard/volume")) {
           body = { days: 30, points: [] };
         } else if (url.includes("/dashboard/categories")) {

@@ -27,6 +27,7 @@
 
 - **#13** — record real-provider eval numbers (M9 follow-up). Stays open until keys are wired and `make eval` is run for real.
 - **Backlog (MILESTONES.md):** multi-tenant + RBAC, eval set expansion, OTel traces, Multi-AZ + private subnets + ACM TLS + S3/DynamoDB Terraform backend.
+- **Design system** — dual-theme (dark default + light) audit-grade visual layer for the frontend + a real `GET /dashboard/kpis` endpoint, on branch `claude/serene-maxwell-54yMC` (draft PR). Net-new work beyond the M0–M11 roadmap; `make check` green (201 backend pytest, 7 frontend Vitest, ruff/mypy/tsc/build clean).
 
 ---
 
@@ -92,6 +93,8 @@ Status key: ☐ not started · ◐ in progress · ☑ merged
 - 2026-05-28 (M4) — Extraction failures (`parse_error`, `schema_invalid`, `invalid_citation`, `document_not_found`, `no_chunks`, `unknown_schema`) **never persist** an `extractions` row. Surfacing the typed reason to the caller is enough for M5 guardrails / M7 audit / M9 eval to bucket failures without polluting the success-only table.
 - 2026-05-28 (M4) — Citation validation reuses the M3 posture: a `source_chunk_id` not in the supplied chunk set is a hard failure (`invalid_citation`), not a silent drop. Same invariant the M3 RAG layer enforces with `[chunk:N]` markers.
 - 2026-05-28 (M4) — Invoice `issue_date` remains persisted as a string but is schema-constrained to a real ISO `YYYY-MM-DD` date; non-ISO or impossible dates fail schema validation before persistence.
+- 2026-05-29 (design system) — Applied the dual-theme "audit-grade" design system to the frontend: lifted the token layer into `styles.css` (`:root` dark default + `[data-theme="light"]`), self-hosted IBM Plex Sans/Mono via `@fontsource` (latin subset, offline-safe), added `lucide-react`, and a persisted `localStorage["sentinel-theme"]` toggle set before first paint (inline script in `index.html`, no FOUC). Real IA/routes/API client/Recharts unchanged; charts restyled with token `var()` fills + per-bar `<Cell>` colors so they re-theme live with the toggle.
+- 2026-05-29 (design system) — Dashboard KPIs are powered by a new real endpoint `GET /dashboard/kpis` (docs ingested, auto-approved rate, avg confidence, SLA-at-risk). Every figure derives from real rows; 24h-vs-prior deltas are emitted only when a comparison window has data (otherwise `null`/flat) — no fabricated numbers or deltas. The Review row renders only fields the `/review` payload returns; the prototype's `schema.field`/`value`/`confidence` are extraction-level details absent from the queue API, so they are not invented.
 
 ---
 

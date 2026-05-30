@@ -195,3 +195,25 @@ export function getConfidence(): Promise<ConfidenceResponse> {
 export function getSla(thresholdHours = 24): Promise<SlaResponse> {
   return request<SlaResponse>("GET", `/dashboard/sla?threshold_hours=${thresholdHours}`);
 }
+
+export type KpiDirection = "up" | "down" | "flat";
+
+export interface Kpi {
+  key: string;
+  label: string;
+  value: number;
+  display: string;
+  delta: number | null;
+  delta_display: string | null;
+  direction: KpiDirection;
+}
+
+export interface KpiResponse {
+  kpis: Kpi[];
+  threshold_hours: number;
+  generated_at: string;
+}
+
+export function getKpis(thresholdHours = 24): Promise<KpiResponse> {
+  return request<KpiResponse>("GET", `/dashboard/kpis?threshold_hours=${thresholdHours}`);
+}

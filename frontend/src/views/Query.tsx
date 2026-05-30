@@ -1,5 +1,15 @@
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type KeyboardEvent } from "react";
+import { Search } from "lucide-react";
 import { ApiError, postQuery, type QueryResponse } from "../api";
+
+// Example questions sourced from the synthetic corpus. Clicking one fills and submits.
+// The last is a deliberate refusal case — by design, not an error.
+const SUGGESTIONS = [
+  "What is the total amount due on the Initech Components invoice issued on 2026-01-22?",
+  "Summarize incident INC-0700 and its duration.",
+  "Who owns the supplier onboarding policy and when is it effective?",
+  "What was our Q3 revenue and projected churn for next year?",
+];
 
 type State =
   | { kind: "idle" }
@@ -10,11 +20,11 @@ type State =
 export function Query(): JSX.Element {
   const [question, setQuestion] = useState("");
   const [state, setState] = useState<State>({ kind: "idle" });
+  const loading = state.kind === "loading";
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>): Promise<void> {
-    event.preventDefault();
-    const trimmed = question.trim();
-    if (!trimmed) return;
+  async function submitQuestion(text: string): Promise<void> {
+    const trimmed = text.trim();
+    if (!trimmed || loading) return;
     setState({ kind: "loading" });
     try {
       const result = await postQuery({ query: trimmed });
@@ -25,36 +35,78 @@ export function Query(): JSX.Element {
     }
   }
 
+  function onSubmit(event: FormEvent<HTMLFormElement>): void {
+    event.preventDefault();
+    void submitQuestion(question);
+  }
+
+  function onKeyDown(event: KeyboardEvent<HTMLTextAreaElement>): void {
+    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      void submitQuestion(question);
+    }
+  }
+
+  function onChipClick(text: string): void {
+    setQuestion(text);
+    void submitQuestion(text);
+  }
+
   return (
     <section aria-labelledby="query-heading">
-      <h2 id="query-heading">Ask a question</h2>
-      <form onSubmit={onSubmit} aria-label="query form">
+      <div className="view-head">
+        <p className="eyebrow">Retrieval-augmented · citation-grounded</p>
+        <h1 id="query-heading" className="view-title">
+          Ask a question
+        </h1>
+        <p className="view-sub">
+          Citations are required — Sentinel refuses to answer without them.
+        </p>
+      </div>
+
+      <form className="card" onSubmit={onSubmit} aria-label="query form">
+        <label className="field-label" htmlFor="question">
+          Question
+        </label>
         <textarea
+          id="question"
           aria-label="question"
           placeholder="Ask a question about the synthetic corpus…"
           value={question}
           onChange={(e) => setQuestion(e.target.value)}
+          onKeyDown={onKeyDown}
           maxLength={4000}
         />
-        <div className="row" style={{ marginTop: "0.5rem" }}>
-          <button
-            type="submit"
-            className="primary"
-            disabled={state.kind === "loading" || !question.trim()}
-          >
-            {state.kind === "loading" ? "Asking…" : "Ask"}
-          </button>
-          <span className="muted">
-            Citations are required — Sentinel refuses to answer without them.
+        <div className="row" style={{ justifyContent: "space-between", marginTop: "var(--sp-3)" }}>
+          <span className="muted mono" style={{ fontSize: "var(--text-xs)" }}>
+            ⌘↵ to submit
           </span>
+          <button type="submit" className="btn primary" disabled={loading || !question.trim()}>
+            <Search size={15} aria-hidden />
+            {loading ? "Retrieving and generating…" : "Ask"}
+          </button>
+        </div>
+        <div className="chips">
+          {SUGGESTIONS.map((s) => (
+            <button
+              key={s}
+              type="button"
+              className="chip"
+              onClick={() => onChipClick(s)}
+              disabled={loading}
+            >
+              {s}
+            </button>
+          ))}
         </div>
       </form>
 
-      <div style={{ marginTop: "1.25rem" }}>
+      <div style={{ marginTop: "var(--sp-4)" }}>
         {state.kind === "idle" && (
-          <p className="muted">Submit a question to see a cited answer or a deliberate refusal.</p>
+          <p className="muted" style={{ textAlign: "center", marginTop: "var(--sp-6)" }}>
+            Submit a question to see a cited answer or a deliberate refusal.
+          </p>
         )}
-        {state.kind === "loading" && <p className="muted">Retrieving and generating…</p>}
         {state.kind === "error" && (
           <div className="error" role="alert">
             {state.message}
@@ -70,37 +122,38 @@ function Answer({ result }: { result: QueryResponse }): JSX.Element {
   if (result.status === "refused") {
     return (
       <div className="card" role="status">
-        <h3>Refused</h3>
-        <p>{result.answer}</p>
-        {result.reason && (
-          <p className="muted">
-            Reason: <code>{result.reason}</code>
-          </p>
-        )}
+        <h3 className="result-title">
+          <span className="badge rejected">refused</span> Refused
+        </h3>
+        <p className="answer">{result.answer}</p>
+        <div className="cite refusal">
+          <div className="cmeta">{result.reason ?? "no_citation"}</div>
+          <div className="ctext">
+            A refusal is correct behavior, not an error — Sentinel will not answer without a
+            grounding citation.
+          </div>
+        </div>
       </div>
     );
   }
   return (
     <div className="card" role="status">
-      <h3>Answer</h3>
-      <p style={{ whiteSpace: "pre-wrap" }}>{result.answer}</p>
-      <h3 style={{ marginTop: "0.75rem" }}>
-        Citations ({result.citations.length})
+      <h3 className="result-title">
+        <span className="badge auto_approved">cited</span> Answer
       </h3>
+      <p className="answer">{result.answer}</p>
+      <div className="section-label">Citations ({result.citations.length})</div>
       {result.citations.length === 0 ? (
         <p className="muted">No citations.</p>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-          {result.citations.map((c) => (
-            <li key={c.chunk_id} className="citation">
-              <div className="muted">
-                chunk #{c.chunk_id} · doc #{c.document_id} · score{" "}
-                {c.score.toFixed(3)}
-              </div>
-              <div style={{ marginTop: "0.25rem", whiteSpace: "pre-wrap" }}>{c.text}</div>
-            </li>
-          ))}
-        </ul>
+        result.citations.map((c) => (
+          <div className="cite" key={c.chunk_id}>
+            <div className="cmeta">
+              chunk #{c.chunk_id} · doc #{c.document_id} · score {c.score.toFixed(3)}
+            </div>
+            <div className="ctext">{c.text}</div>
+          </div>
+        ))
       )}
     </div>
   );

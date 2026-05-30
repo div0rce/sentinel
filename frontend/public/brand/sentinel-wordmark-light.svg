@@ -1,0 +1,11 @@
+<svg width="232" height="48" viewBox="0 0 232 48" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Sentinel">
+  <rect x="0.75" y="0.75" width="46.5" height="46.5" rx="2" fill="#0b0f17" stroke="#294a7d" stroke-width="1.2"></rect>
+  <path d="M9.5 13.5 V9.5 H13.5" stroke="#3d8bfd" stroke-width="1.6" fill="none"></path>
+  <path d="M34.5 9.5 H38.5 V13.5" stroke="#3d8bfd" stroke-width="1.6" fill="none"></path>
+  <path d="M38.5 34.5 V38.5 H34.5" stroke="#3d8bfd" stroke-width="1.6" fill="none"></path>
+  <path d="M13.5 38.5 H9.5 V34.5" stroke="#3d8bfd" stroke-width="1.6" fill="none"></path>
+  <rect x="16.5" y="18.5" width="15" height="2.4" fill="#3d8bfd"></rect>
+  <rect x="16.5" y="24.5" width="15" height="2" fill="#7d8a9c"></rect>
+  <rect x="16.5" y="30" width="10.5" height="2" fill="#7d8a9c"></rect>
+  <text x="62" y="31" font-family="&#39;IBM Plex Sans&#39;,&#39;Segoe UI&#39;,Helvetica,Arial,sans-serif" font-size="24" font-weight="600" letter-spacing="-0.3" fill="#0e131d">Sentinel</text>
+</svg>
