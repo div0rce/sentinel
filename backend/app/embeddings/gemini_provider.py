@@ -39,6 +39,11 @@ class GeminiEmbedder:
         base_url: str = DEFAULT_BASE_URL,
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
     ) -> None:
+        """Configure the embedder. ``dim`` is the output vector size requested from
+        the API (via ``output_dimensionality``) and validated on every response;
+        ``base_url`` is normalised (trailing slash stripped). Raises ``ValueError``
+        when ``api_key`` is empty or ``dim < 1`` — fail fast rather than at the first
+        request."""
         if not api_key:
             raise ValueError("GEMINI_API_KEY is required to use GeminiEmbedder")
         if dim < 1:
@@ -54,6 +59,12 @@ class GeminiEmbedder:
         return self._dim
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        """Embed ``texts`` into one ``dim``-length vector each, in input order.
+
+        Returns ``[]`` for empty input (no request issued). Raises ``RuntimeError``
+        on a non-2xx response, or if the API returns the wrong number of vectors or
+        a vector whose length differs from ``dim`` — surfacing a provider/dimension
+        mismatch loudly rather than letting a bad vector reach pgvector."""
         if not texts:
             return []
         # batchEmbedContents returns one embedding per request, in order. The model

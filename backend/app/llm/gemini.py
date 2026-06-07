@@ -33,6 +33,10 @@ class GeminiClient:
         base_url: str = DEFAULT_BASE_URL,
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
     ) -> None:
+        """Configure the client. ``base_url`` is normalised (trailing slash stripped)
+        so the request URL is well-formed regardless of how ``GEMINI_BASE_URL`` is set.
+        Raises ``ValueError`` when ``api_key`` is empty — fail fast rather than at the
+        first request."""
         if not api_key:
             raise ValueError("GEMINI_API_KEY is required to use GeminiClient")
         self._api_key = api_key
@@ -52,6 +56,13 @@ class GeminiClient:
         max_tokens: int,
         temperature: float,
     ) -> LLMResponse:
+        """Return a single completion for the (system, user) pair.
+
+        ``system`` is sent as a ``systemInstruction`` only when non-empty (an empty
+        one can be rejected). Text parts from the first candidate are concatenated;
+        an empty/blocked response yields ``LLMResponse(text="")`` rather than raising,
+        so callers (e.g. the RAG refusal path) can handle it. Raises ``RuntimeError``
+        on a non-2xx response (without leaking the key)."""
         payload: dict[str, Any] = {
             "contents": [{"role": "user", "parts": [{"text": user}]}],
             "generationConfig": {

@@ -53,7 +53,8 @@ class Settings(BaseSettings):
         description=(
             "Gemini embedding model id used when embeddings_provider='gemini'. Supports "
             "flexible output dimensions (128–3072); EMBEDDING_DIM must still equal the "
-            "database schema dimension (1536)."
+            "database schema dimension (1536). If 'gemini-embedding-2' is unavailable to "
+            "your account/region, 'gemini-embedding-001' is a compatible alternative."
         ),
     )
 
