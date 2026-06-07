@@ -493,11 +493,13 @@ def evaluate_rag(
 
 
 def _settings_summary(settings: Settings) -> dict[str, Any]:
+    # Report the *active* provider's model, not a hardcoded Anthropic/OpenAI label, so
+    # a Gemini (or fake) run does not mislabel itself in RESULTS.md (Golden Rule #5).
     return {
         "llm_provider": settings.llm_provider,
-        "claude_model": settings.claude_model,
+        "llm_model": settings.active_llm_model,
         "embeddings_provider": settings.embeddings_provider,
-        "openai_embedding_model": settings.openai_embedding_model,
+        "embedding_model": settings.active_embedding_model,
         "embedding_dim": settings.embedding_dim,
         "llm_temperature": settings.llm_temperature,
         "retrieval_top_k": settings.retrieval_top_k,
