@@ -76,6 +76,7 @@ module "ecs" {
   database_url_secret_arn  = module.secrets.database_url_arn
   anthropic_key_secret_arn = module.secrets.anthropic_key_arn
   openai_key_secret_arn    = module.secrets.openai_key_arn
+  gemini_key_secret_arn    = module.secrets.gemini_key_arn
 }
 
 # OIDC role for the GitHub Actions CD workflow. Created only when a repo is supplied.

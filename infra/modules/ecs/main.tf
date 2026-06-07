@@ -58,6 +58,7 @@ data "aws_iam_policy_document" "task_execution_secrets" {
       var.database_url_secret_arn,
       var.anthropic_key_secret_arn,
       var.openai_key_secret_arn,
+      var.gemini_key_secret_arn,
     ]
   }
   statement {
@@ -210,11 +211,13 @@ locals {
       ]
       environment = [
         { name = "PORT", value = "8000" },
-        { name = "EMBEDDINGS_PROVIDER", value = "openai" },
-        { name = "LLM_PROVIDER", value = "anthropic" },
-        { name = "EMBEDDING_DIM", value = "1536" },
-        { name = "OPENAI_EMBEDDING_MODEL", value = "text-embedding-3-small" },
-        { name = "CLAUDE_MODEL", value = "claude-sonnet-4-6" },
+        { name = "EMBEDDINGS_PROVIDER", value = var.embeddings_provider },
+        { name = "LLM_PROVIDER", value = var.llm_provider },
+        { name = "EMBEDDING_DIM", value = var.embedding_dim },
+        { name = "OPENAI_EMBEDDING_MODEL", value = var.openai_embedding_model },
+        { name = "CLAUDE_MODEL", value = var.claude_model },
+        { name = "GEMINI_MODEL", value = var.gemini_model },
+        { name = "GEMINI_EMBEDDING_MODEL", value = var.gemini_embedding_model },
         { name = "LLM_TEMPERATURE", value = "0.0" },
         { name = "PII_REDACTION_ENABLED", value = "true" },
         { name = "SENTINEL_LOG_FORMAT", value = "json" },
@@ -223,6 +226,7 @@ locals {
         { name = "DATABASE_URL", valueFrom = var.database_url_secret_arn },
         { name = "ANTHROPIC_API_KEY", valueFrom = var.anthropic_key_secret_arn },
         { name = "OPENAI_API_KEY", valueFrom = var.openai_key_secret_arn },
+        { name = "GEMINI_API_KEY", valueFrom = var.gemini_key_secret_arn },
       ]
       logConfiguration = {
         logDriver = "awslogs"
@@ -294,7 +298,7 @@ resource "aws_ecs_service" "backend" {
   network_configuration {
     subnets          = var.public_subnet_ids
     security_groups  = [var.backend_sg_id]
-    assign_public_ip = true # Required in no-NAT topology so tasks can reach ECR/Anthropic/OpenAI.
+    assign_public_ip = true # Required in no-NAT topology so tasks can reach ECR + external model APIs (Anthropic/OpenAI/Gemini).
   }
 
   load_balancer {
