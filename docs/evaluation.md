@@ -43,6 +43,13 @@ the run in `eval/RESULTS.md`):
   `backend.app.models.SCHEMA_EMBEDDING_DIM`.
 - **Temperature:** `0.0` per CLAUDE.md house style ("pin temperatures for LLM
   calls used in eval").
+
+A run may also use the **Gemini** provider (`gemini-3.5-flash` +
+`gemini-embedding-2`, 1536 dimensions) — see "Reproducing the numbers" below.
+`eval/RESULTS.md` records the *active* provider/model for the run (the
+`llm_model` / `embedding_model` run-metadata labels resolve from the selected
+provider, so a Gemini run never mislabels itself as Claude/OpenAI). Numbers from
+different providers are not comparable and should not be mixed in one results file.
 - **k:** `5` for retrieval and as the default top-k passed to RAG.
 
 `Settings` defaults reflect these pins; `.env.example` documents them.
@@ -160,11 +167,20 @@ ever shipping a number that could be misread as a quality claim.
 ## Reproducing the numbers
 
 ```bash
-# 1. Wire keys (real run)
+# 1. Wire keys (real run) — Anthropic + OpenAI…
 export ANTHROPIC_API_KEY=...
 export OPENAI_API_KEY=...
 export LLM_PROVIDER=anthropic
 export EMBEDDINGS_PROVIDER=openai
+
+# …or a single free Google AI Studio key:
+#   export GEMINI_API_KEY=...
+#   export LLM_PROVIDER=gemini
+#   export EMBEDDINGS_PROVIDER=gemini
+#   export GEMINI_MODEL=gemini-3.5-flash
+#   export GEMINI_EMBEDDING_MODEL=gemini-embedding-2
+#   export EMBEDDING_DIM=1536
+# (Re-seed when switching embedding providers — vectors are not comparable.)
 
 # 2. Apply migrations to a fresh DB
 make migrate

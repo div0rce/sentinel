@@ -123,10 +123,21 @@ the database never sees raw emails / SSNs / phone numbers / IPs.
 
 ### Embeddings (`backend/app/embeddings/`)
 
-Provider behind an interface. Two implementations: `OpenAIEmbedder`
-(`text-embedding-3-small`, 1536 dims) and `FakeEmbedder` (deterministic SHA-256
-projection used in CI and unit tests). Provider is selected by
-`EMBEDDINGS_PROVIDER`. CI runs offline with `EMBEDDINGS_PROVIDER=fake`.
+Provider behind an interface. Implementations: `OpenAIEmbedder`
+(`text-embedding-3-small`, 1536 dims), `GeminiEmbedder` (`gemini-embedding-2`,
+requesting 1536 dims via the REST `output_dimensionality` field), and
+`FakeEmbedder` (deterministic SHA-256 projection used in CI and unit tests).
+Provider is selected by `EMBEDDINGS_PROVIDER`. CI runs offline with
+`EMBEDDINGS_PROVIDER=fake`. Vectors from different providers are not comparable,
+so a provider/model/dimension change requires a re-seed.
+
+### LLM (`backend/app/llm/`)
+
+Single-turn chat behind an interface. Implementations: `ClaudeClient`
+(Anthropic `/v1/messages`), `GeminiClient` (Google `:generateContent`), and
+`FakeLLM` (canned, deterministic). Provider is selected by `LLM_PROVIDER`; both
+hosted clients talk to their REST API directly via `httpx` (no vendor SDK). A
+single free Google AI Studio key can therefore drive both the LLM and embeddings.
 
 ### Retrieval (`backend/app/retrieval.py`)
 
@@ -407,7 +418,7 @@ flowchart TB
 
       ecr_be[(ECR sentinel-backend)]
       ecr_fe[(ECR sentinel-frontend)]
-      ssm[(SSM SecureString<br/>/sentinel/anthropic_api_key<br/>/sentinel/openai_api_key<br/>/sentinel/database_url)]
+      ssm[(SSM SecureString<br/>/sentinel/anthropic_api_key<br/>/sentinel/openai_api_key<br/>/sentinel/gemini_api_key<br/>/sentinel/database_url)]
       cwlogs[CloudWatch Logs<br/>retention 7d]
 
       gha[GitHub Actions OIDC role<br/>scoped: ECR push + ECS update-service]
@@ -461,8 +472,9 @@ subnets in the no-NAT design), the SG bars internet reach.
 | **Total idle floor**  |     **~$45/mo**  | Plus per-second Fargate + traffic charges.  |
 
 The estimate excludes a NAT Gateway (~$32/mo idle) by design: ECS tasks live
-in public subnets with `assign_public_ip = true` so they can reach ECR,
-Anthropic, OpenAI, and CloudWatch without one. This is acceptable **only**
+in public subnets with `assign_public_ip = true` so they can reach ECR, the
+external model APIs (Anthropic / OpenAI / Gemini), and CloudWatch without one.
+This is acceptable **only**
 because the security groups are tight (above) and the deployment is
 ephemeral. Run `terraform destroy` immediately after demo screenshots — the
 operator recipe lives in `infra/README.md`.

@@ -160,5 +160,11 @@ and presentable. Do not skip ahead — later milestones assume earlier ones exis
 - Eval expansion (larger labeled set, per-category breakdown).
 - Observability: OpenTelemetry traces, dashboards.
 - Reranking stage before generation.
+- Role-aware embedding API + Gemini retrieval prefixes. `gemini-embedding-2` recommends
+  instruction-prefixing queries vs. documents (no `task_type` for text retrieval), but the
+  `EmbeddingProvider.embed(texts)` interface is role-agnostic and shared by ingest and query
+  paths. Adding prefixes cleanly needs a query/document role threaded through the Protocol and
+  all providers — deferred from the Gemini-provider PR to avoid changing retrieval semantics
+  for OpenAI/fake. Requires tests before any behaviour change.
 
 > Do not pull backlog items into earlier PRs. Park ideas here.

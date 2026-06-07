@@ -28,6 +28,7 @@
 - **#13** — record real-provider eval numbers (M9 follow-up). Stays open until keys are wired and `make eval` is run for real.
 - **Backlog (MILESTONES.md):** multi-tenant + RBAC, eval set expansion, OTel traces, Multi-AZ + private subnets + ACM TLS + S3/DynamoDB Terraform backend.
 - **Design system** — dual-theme (dark default + light) audit-grade visual layer for the frontend + a real `GET /dashboard/kpis` endpoint, on branch `claude/serene-maxwell-54yMC` (draft PR). Net-new work beyond the M0–M11 roadmap; `make check` green (201 backend pytest, 7 frontend Vitest, ruff/mypy/tsc/build clean).
+- **Gemini provider** — first-class Google AI Studio / Gemini support for **both** LLM (`GeminiClient`, `:generateContent`) and embeddings (`GeminiEmbedder`, `:batchEmbedContents`, requesting 1536 dims), so the whole stack runs on a single free Google key; wired through config, both factories, eval run-metadata (active-model labels), `.env.example`/README/eval/architecture/demo docs, and Terraform/ECS (optional `gemini_api_key` SSM param + provider env vars). On branch `feat/gemini-provider`. New offline tests mock `httpx`; `fake` stays the CI default (no live calls). `make check` green (222 backend pytest [+21 Gemini], 7 frontend Vitest, ruff/mypy/terraform clean). No fabricated eval numbers — real-provider eval not run.
 
 ---
 
