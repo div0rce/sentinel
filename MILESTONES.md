@@ -160,6 +160,12 @@ and presentable. Do not skip ahead — later milestones assume earlier ones exis
 - Eval expansion (larger labeled set, per-category breakdown).
 - Observability: OpenTelemetry traces, dashboards.
 - Reranking stage before generation.
+- Shared provider HTTP base. `ClaudeClient`, `GeminiClient`, `OpenAIEmbedder`, and
+  `GeminiEmbedder` each repeat api-key validation, base-URL normalization, the `httpx`
+  POST + headers + error handling, and the timeout knob. Extract a small shared base (or
+  transport helper) to DRY all four and shrink each constructor's argument surface — done
+  across all providers together so they stay consistent (deliberately out of scope for the
+  Gemini-provider PR, which keeps the new classes parallel to the existing ones).
 - Role-aware embedding API + Gemini retrieval prefixes. `gemini-embedding-2` recommends
   instruction-prefixing queries vs. documents (no `task_type` for text retrieval), but the
   `EmbeddingProvider.embed(texts)` interface is role-agnostic and shared by ingest and query

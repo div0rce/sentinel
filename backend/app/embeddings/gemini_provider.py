@@ -30,6 +30,10 @@ class GeminiEmbedder:
     DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
     DEFAULT_TIMEOUT_SECONDS = 30.0
 
+    # Constructor is kept parallel to OpenAIEmbedder (api_key, model, dim, base_url,
+    # timeout): keyword-only and self-documenting at every call site. Consistency
+    # across the provider classes is deliberate; see the shared-provider-base backlog
+    # item in MILESTONES.md for the cross-cutting DRY pass.
     def __init__(
         self,
         *,
