@@ -87,15 +87,22 @@ class GeminiEmbedder:
             timeout=self._timeout,
         )
         raise_for_gemini_error(response, model=self._model)
-        body = response.json()
+        return _parse_batch_embeddings(response.json(), expected_count=len(texts), dim=self._dim)
 
-        items = body.get("embeddings") or []
-        vectors: list[list[float]] = [list(item["values"]) for item in items]
-        if len(vectors) != len(texts):
-            raise RuntimeError(f"Gemini returned {len(vectors)} embeddings, expected {len(texts)}")
-        for vec in vectors:
-            if len(vec) != self._dim:
-                raise RuntimeError(
-                    f"Gemini returned vector of length {len(vec)}, expected {self._dim}"
-                )
-        return vectors
+
+def _parse_batch_embeddings(
+    body: dict[str, Any], *, expected_count: int, dim: int
+) -> list[list[float]]:
+    """Extract and validate vectors from a ``batchEmbedContents`` response body.
+
+    Returns one ``dim``-length vector per request, in order. Raises ``RuntimeError``
+    if the count or any vector length disagrees with what was requested, so a
+    provider/dimension mismatch fails loudly rather than reaching pgvector."""
+    items = body.get("embeddings") or []
+    vectors: list[list[float]] = [list(item["values"]) for item in items]
+    if len(vectors) != expected_count:
+        raise RuntimeError(f"Gemini returned {len(vectors)} embeddings, expected {expected_count}")
+    for vec in vectors:
+        if len(vec) != dim:
+            raise RuntimeError(f"Gemini returned vector of length {len(vec)}, expected {dim}")
+    return vectors

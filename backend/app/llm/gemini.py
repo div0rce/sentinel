@@ -85,14 +85,21 @@ class GeminiClient:
             timeout=self._timeout,
         )
         raise_for_gemini_error(response, model=self._model)
-        body = response.json()
+        return _parse_generate_content(response.json(), default_model=self._model)
 
-        candidates = body.get("candidates") or []
-        model = str(body.get("modelVersion") or body.get("model") or self._model)
-        if not candidates:
-            return LLMResponse(text="", model=model, stop_reason=None)
 
-        first = candidates[0]
-        parts = (first.get("content") or {}).get("parts") or []
-        text = "".join(str(part.get("text", "")) for part in parts if "text" in part)
-        return LLMResponse(text=text, model=model, stop_reason=first.get("finishReason"))
+def _parse_generate_content(body: dict[str, Any], *, default_model: str) -> LLMResponse:
+    """Build an :class:`LLMResponse` from a ``generateContent`` response body.
+
+    Concatenates the text parts of the first candidate; the model is taken from the
+    response (``modelVersion``/``model``) or falls back to ``default_model``. A
+    missing/empty candidate list yields empty text rather than an error."""
+    candidates = body.get("candidates") or []
+    model = str(body.get("modelVersion") or body.get("model") or default_model)
+    if not candidates:
+        return LLMResponse(text="", model=model, stop_reason=None)
+
+    first = candidates[0]
+    parts = (first.get("content") or {}).get("parts") or []
+    text = "".join(str(part.get("text", "")) for part in parts if "text" in part)
+    return LLMResponse(text=text, model=model, stop_reason=first.get("finishReason"))
