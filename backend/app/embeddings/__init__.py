@@ -5,6 +5,7 @@ Public entry points:
 * :class:`EmbeddingProvider` — the protocol all providers implement.
 * :class:`FakeEmbedder` — deterministic, no-API embedder for tests/CI.
 * :class:`OpenAIEmbedder` — hosted ``text-embedding-3-*`` via OpenAI's REST API.
+* :class:`GeminiEmbedder` — hosted ``gemini-embedding-*`` via Google's REST API.
 * :func:`get_embedder` — factory that maps :class:`backend.app.config.Settings` to the
   right provider, validating that the runtime ``embedding_dim`` matches the canonical
   database schema dimension before any vector is generated.
@@ -15,12 +16,14 @@ from __future__ import annotations
 from backend.app.config import Settings, get_settings
 from backend.app.embeddings.base import EmbeddingProvider
 from backend.app.embeddings.fake import FakeEmbedder
+from backend.app.embeddings.gemini_provider import GeminiEmbedder
 from backend.app.embeddings.openai_provider import OpenAIEmbedder
 from backend.app.models import SCHEMA_EMBEDDING_DIM
 
 __all__ = [
     "EmbeddingProvider",
     "FakeEmbedder",
+    "GeminiEmbedder",
     "OpenAIEmbedder",
     "get_embedder",
 ]
@@ -51,6 +54,13 @@ def get_embedder(settings: Settings | None = None) -> EmbeddingProvider:
             api_key=settings.openai_api_key,
             model=settings.openai_embedding_model,
             dim=SCHEMA_EMBEDDING_DIM,
+        )
+    if provider == "gemini":
+        return GeminiEmbedder(
+            api_key=settings.gemini_api_key or settings.google_api_key,
+            model=settings.gemini_embedding_model,
+            dim=SCHEMA_EMBEDDING_DIM,
+            base_url=settings.gemini_base_url,
         )
     if provider == "voyage":
         # Voyage support arrives in a later milestone; fail loudly so misconfiguration

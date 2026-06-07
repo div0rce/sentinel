@@ -5,6 +5,7 @@ Public entry points:
 * :class:`LLMClient` — the protocol all providers implement.
 * :class:`FakeLLM` — deterministic, no-API client for tests.
 * :class:`ClaudeClient` — hosted Anthropic Claude via the ``/v1/messages`` API.
+* :class:`GeminiClient` — hosted Google Gemini via the ``:generateContent`` API.
 * :func:`get_llm` — factory that maps :class:`backend.app.config.Settings` to the
   right provider.
 """
@@ -15,10 +16,12 @@ from backend.app.config import Settings, get_settings
 from backend.app.llm.base import LLMClient, LLMResponse
 from backend.app.llm.claude import ClaudeClient
 from backend.app.llm.fake import FakeLLM
+from backend.app.llm.gemini import GeminiClient
 
 __all__ = [
     "ClaudeClient",
     "FakeLLM",
+    "GeminiClient",
     "LLMClient",
     "LLMResponse",
     "get_llm",
@@ -40,5 +43,11 @@ def get_llm(settings: Settings | None = None) -> LLMClient:
         return ClaudeClient(
             api_key=settings.anthropic_api_key,
             model=settings.claude_model,
+        )
+    if provider == "gemini":
+        return GeminiClient(
+            api_key=settings.gemini_api_key or settings.google_api_key,
+            model=settings.gemini_model,
+            base_url=settings.gemini_base_url,
         )
     raise ValueError(f"Unknown LLM provider: {provider!r}")
