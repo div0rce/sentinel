@@ -19,10 +19,14 @@ final section repeats the demo on AWS using the M10 Terraform stack.
 | Node | 20 LTS | Vite dev server for the frontend |
 | Anthropic API key | claude-sonnet-4-6 access | for `/query` and `/extract` |
 | OpenAI API key | text-embedding-3-small access | for embeddings at ingest time |
+| _or_ Google AI Studio key | gemini-3.5-flash + gemini-embedding-2 | drives **both** LLM and embeddings on one free key |
 
 Without API keys you can still run the test suite (it uses the deterministic
 fake LLM and embedder) but `/query` and `/extract` against the real
-synthetic corpus need real keys.
+synthetic corpus need real keys. The lowest-friction path is a single free
+[Google AI Studio](https://aistudio.google.com/apikey) key with
+`LLM_PROVIDER=gemini` and `EMBEDDINGS_PROVIDER=gemini` (see the README's
+"Google-only quickstart").
 
 ---
 
@@ -315,6 +319,9 @@ aws ssm put-parameter --name /sentinel/anthropic_api_key \
   --type SecureString --value "$ANTHROPIC_API_KEY" --overwrite
 aws ssm put-parameter --name /sentinel/openai_api_key \
   --type SecureString --value "$OPENAI_API_KEY" --overwrite
+# Only if deploying with -var='llm_provider=gemini' / 'embeddings_provider=gemini':
+aws ssm put-parameter --name /sentinel/gemini_api_key \
+  --type SecureString --value "$GEMINI_API_KEY" --overwrite
 
 # Force the backend to pick up the new secret values
 aws ecs update-service --cluster sentinel-cluster \

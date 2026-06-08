@@ -41,8 +41,10 @@ draft the case-study writeup or polish the résumé — but the engineering is C
      -F enforce_admins=false -F required_status_checks=null -F restrictions=null
    ```
    (Or do it in GitHub → Settings → Branches → add rule on `main`: "Require a pull request before merging".)
-6. **API keys:** have an Anthropic API key (the app's LLM) and an embeddings key (OpenAI or Voyage). You'll
-   put them in `.env` (gitignored) during M2/M3. **CI needs none** — tests mock both providers.
+6. **API keys:** have an Anthropic API key (the app's LLM) and an embeddings key (OpenAI or Voyage) —
+   **or** a single free Google AI Studio key, which drives both the LLM and embeddings when you set
+   `LLM_PROVIDER=gemini` + `EMBEDDINGS_PROVIDER=gemini` (see the README "Google-only quickstart"). You'll
+   put them in `.env` (gitignored) during M2/M3. **CI needs none** — tests mock every provider.
 
 ---
 
@@ -339,13 +341,18 @@ node_modules/ dist/
 ```
 DATABASE_URL=postgresql+psycopg://sentinel:sentinel@localhost:5432/sentinel
 ANTHROPIC_API_KEY=
-EMBEDDINGS_PROVIDER=openai          # or: voyage
+LLM_PROVIDER=anthropic              # or: gemini, fake
+EMBEDDINGS_PROVIDER=openai          # or: voyage, gemini, fake
 OPENAI_API_KEY=
 VOYAGE_API_KEY=
+GEMINI_API_KEY=                     # free Google AI Studio key drives both LLM + embeddings
 RETRIEVAL_TOP_K=5
 RETRIEVAL_MIN_SCORE=0.30
 CONFIDENCE_REVIEW_THRESHOLD=0.75
 ```
+
+> The committed `.env.example` is the source of truth and has the full set
+> (Gemini model/base-url options included); this is an abridged illustration.
 
 ### `docker-compose.yml`
 ```yaml

@@ -121,7 +121,7 @@ The full step-by-step is in [`docs/demo.md`](docs/demo.md). Short version
 # 1. clone
 git clone https://github.com/div0rce/sentinel.git
 cd sentinel
-cp .env.example .env   # set ANTHROPIC_API_KEY and OPENAI_API_KEY
+cp .env.example .env   # set ANTHROPIC_API_KEY + OPENAI_API_KEY (or use the Google-only path below)
 
 # 2. start Postgres + the API
 docker compose up -d db
@@ -142,6 +142,28 @@ curl -s http://localhost:8000/query \
 
 Open <http://localhost:5173> for the SPA: **Query**, **Review**, and
 **Dashboard** views.
+
+### Google-only quickstart (one free Google AI Studio key)
+
+Sentinel speaks Gemini for both the LLM and embeddings, so you can run the whole
+stack on a single free [Google AI Studio](https://aistudio.google.com/apikey) key
+— no Anthropic or OpenAI key required. After `cp .env.example .env`, set:
+
+```bash
+GEMINI_API_KEY=...                  # GOOGLE_API_KEY also works
+LLM_PROVIDER=gemini
+GEMINI_MODEL=gemini-3.5-flash       # fallback: gemini-2.5-flash if 3.5 isn't available to your account
+EMBEDDINGS_PROVIDER=gemini
+GEMINI_EMBEDDING_MODEL=gemini-embedding-2
+EMBEDDING_DIM=1536
+```
+
+Then continue with `docker compose up -d db && make dev && make migrate && make seed`.
+
+> **Switching embedding providers?** Embeddings from different providers/models are
+> **not comparable** — never mix them in one seeded DB. After changing
+> `EMBEDDINGS_PROVIDER`/`GEMINI_EMBEDDING_MODEL`/`EMBEDDING_DIM`, reset and reseed:
+> `docker compose down -v && docker compose up -d db && make migrate && make seed`.
 
 ### Run the test suite
 
@@ -181,6 +203,19 @@ export ANTHROPIC_API_KEY=...
 export OPENAI_API_KEY=...
 export LLM_PROVIDER=anthropic
 export EMBEDDINGS_PROVIDER=openai
+make migrate && make seed && make eval
+```
+
+…or on a single free Google AI Studio key (re-seed first, since Gemini embeddings
+are not comparable to OpenAI's):
+
+```bash
+export GEMINI_API_KEY=...
+export LLM_PROVIDER=gemini
+export EMBEDDINGS_PROVIDER=gemini
+export GEMINI_MODEL=gemini-3.5-flash
+export GEMINI_EMBEDDING_MODEL=gemini-embedding-2
+export EMBEDDING_DIM=1536
 make migrate && make seed && make eval
 ```
 

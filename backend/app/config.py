@@ -43,10 +43,19 @@ class Settings(BaseSettings):
             "against the canonical database schema dimension before storing vectors."
         ),
     )
-    embeddings_provider: Literal["openai", "voyage", "fake"] = "openai"
+    embeddings_provider: Literal["openai", "voyage", "gemini", "fake"] = "openai"
     openai_embedding_model: str = Field(
         default="text-embedding-3-small",
         description="OpenAI embedding model id used when embeddings_provider='openai'.",
+    )
+    gemini_embedding_model: str = Field(
+        default="gemini-embedding-2",
+        description=(
+            "Gemini embedding model id used when embeddings_provider='gemini'. Supports "
+            "flexible output dimensions (128–3072); EMBEDDING_DIM must still equal the "
+            "database schema dimension (1536). If 'gemini-embedding-2' is unavailable to "
+            "your account/region, 'gemini-embedding-001' is a compatible alternative."
+        ),
     )
 
     # --- Chunking (consumed from M2 onward) ---------------------------------------
@@ -67,7 +76,7 @@ class Settings(BaseSettings):
 
     # --- LLM (consumed from M3 onward) --------------------------------------------
 
-    llm_provider: Literal["anthropic", "fake"] = "anthropic"
+    llm_provider: Literal["anthropic", "gemini", "fake"] = "anthropic"
     claude_model: str = Field(
         default="claude-sonnet-4-6",
         description=(
@@ -75,6 +84,18 @@ class Settings(BaseSettings):
             "ids use a dateless format that is itself a pinned snapshot (per Anthropic's "
             "model-versioning docs); bumping this default is intentional."
         ),
+    )
+    gemini_model: str = Field(
+        default="gemini-3.5-flash",
+        description=(
+            "Gemini model id used when llm_provider='gemini'. If 'gemini-3.5-flash' is "
+            "not available to your account/region, 'gemini-2.5-flash' is a stable "
+            "fallback."
+        ),
+    )
+    gemini_base_url: str = Field(
+        default="https://generativelanguage.googleapis.com/v1beta",
+        description="Base URL for the Gemini (Google AI Studio) REST API.",
     )
     llm_temperature: float = Field(
         default=0.0,
@@ -97,6 +118,14 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     voyage_api_key: str = ""
+    gemini_api_key: str = ""
+    google_api_key: str = Field(
+        default="",
+        description=(
+            "Fallback for GEMINI_API_KEY. Google AI Studio keys work under either name; "
+            "GEMINI_API_KEY is the documented one and takes precedence."
+        ),
+    )
 
     # --- Retrieval and review thresholds (consumed from M3/M5 onward) -------------
 
@@ -115,6 +144,32 @@ class Settings(BaseSettings):
             "against synthetic inputs you control."
         ),
     )
+
+    # --- Resolved-by-provider model labels (consumed by the eval harness) ---------
+
+    @property
+    def active_llm_model(self) -> str:
+        """Model id of the *currently selected* LLM provider.
+
+        Used by the eval harness so RESULTS.md reports the model that actually ran
+        rather than always labelling it with ``claude_model`` (Golden Rule #5).
+        """
+        if self.llm_provider == "anthropic":
+            return self.claude_model
+        if self.llm_provider == "gemini":
+            return self.gemini_model
+        return "fake-llm"
+
+    @property
+    def active_embedding_model(self) -> str:
+        """Embedding model id of the *currently selected* embeddings provider."""
+        if self.embeddings_provider == "openai":
+            return self.openai_embedding_model
+        if self.embeddings_provider == "gemini":
+            return self.gemini_embedding_model
+        # 'voyage' has no model field yet (provider unimplemented) and 'fake' is
+        # non-semantic; fall back to the provider name so the label is never wrong.
+        return self.embeddings_provider
 
 
 @lru_cache(maxsize=1)

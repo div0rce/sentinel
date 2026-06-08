@@ -40,8 +40,8 @@ def _build_parser() -> argparse.ArgumentParser:
 def _print_summary(report: HarnessReport) -> None:
     s = report.settings_summary
     print(
-        f"eval: llm={s['llm_provider']}/{s['claude_model']} "
-        f"emb={s['embeddings_provider']}/{s['openai_embedding_model']} "
+        f"eval: llm={s['llm_provider']}/{s['llm_model']} "
+        f"emb={s['embeddings_provider']}/{s['embedding_model']} "
         f"temp={s['llm_temperature']} k={s['retrieval_top_k']}"
     )
     er = report.extraction

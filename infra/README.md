@@ -20,8 +20,8 @@ scoped GitHub Actions OIDC role that the manual-dispatch CD workflow assumes.
 
 The VPC has two `/24` public subnets and **no NAT Gateway**. ECS tasks live in
 those public subnets and get assigned public IPs (`assign_public_ip = true`)
-so they can reach ECR for image pulls and Anthropic / OpenAI for outbound API
-calls.
+so they can reach ECR for image pulls and the external model APIs
+(Anthropic / OpenAI / Gemini) for outbound calls.
 
 This is chosen because a NAT Gateway is the largest avoidable line item in any
 small AWS deployment (≈$32/month idle, plus ~$0.045/GB processed). For a demo
@@ -50,7 +50,7 @@ backend_sg ──→ rds_sg         (5432)      FastAPI → Postgres
 ```
 
 Egress is open on the task SGs (so containers can reach ECR / Anthropic /
-OpenAI / CloudWatch). RDS has no egress.
+OpenAI / Gemini / CloudWatch). RDS has no egress.
 
 ### Public routing
 
@@ -93,7 +93,7 @@ binding numbers.**
 | ECR storage           |  <$1/mo          | 20-image cap on each repo.                    |
 | Secrets / SSM         |   $0             | Standard parameters, not Advanced.            |
 | CloudWatch Logs       |  <$1/mo          | 7-day retention; demo log volume is tiny.     |
-| Data transfer         |  variable        | Outbound from ECS tasks → Anthropic/OpenAI.   |
+| Data transfer         |  variable        | Outbound from ECS tasks → model APIs.         |
 | **Total idle floor**  | **~$45/mo**      | Plus per-second Fargate charges + traffic.    |
 
 `terraform destroy` removes all of the above. Run it the moment screenshots
@@ -153,10 +153,16 @@ aws ssm put-parameter --name /sentinel/anthropic_api_key \
 
 aws ssm put-parameter --name /sentinel/openai_api_key \
   --type SecureString --value "$OPENAI_API_KEY" --overwrite
+
+# Only needed if you deploy with the Gemini provider (see below):
+aws ssm put-parameter --name /sentinel/gemini_api_key \
+  --type SecureString --value "$GEMINI_API_KEY" --overwrite
 ```
 
 (`/sentinel/database_url` is composed by Terraform from the RDS outputs and
-already populated.)
+already populated. The Gemini parameter is **provisioned by default** but only
+consumed when `llm_provider` or `embeddings_provider` is set to `gemini`, so you
+can leave it at its `REPLACE_ME` placeholder unless you select Gemini.)
 
 Then bounce the backend service so the new secret values are picked up:
 
@@ -165,6 +171,24 @@ aws ecs update-service \
   --cluster sentinel-cluster --service sentinel-backend \
   --force-new-deployment --no-cli-pager
 ```
+
+### Deploy with the Gemini provider (one free Google AI Studio key)
+
+The backend provider/model env vars are Terraform variables (defaults preserve
+the Anthropic + OpenAI stack). To run the deployed demo entirely on Gemini:
+
+```bash
+terraform apply \
+  -var='llm_provider=gemini' \
+  -var='embeddings_provider=gemini' \
+  -var='gemini_model=gemini-3.5-flash' \
+  -var='gemini_embedding_model=gemini-embedding-2' \
+  -var='embedding_dim=1536'
+```
+
+Write the key (above) before bouncing the service. Embeddings from different
+providers are not comparable — switching providers on an already-seeded RDS means
+re-ingesting the corpus.
 
 ### Run migrations + seed
 

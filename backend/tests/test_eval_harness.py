@@ -523,9 +523,9 @@ def test_render_writes_real_metrics_when_quotable(session: Session, tmp_path: Pa
         ),
         settings_summary={
             "llm_provider": "anthropic",
-            "claude_model": "claude-sonnet-4-6",
+            "llm_model": "claude-sonnet-4-6",
             "embeddings_provider": "openai",
-            "openai_embedding_model": "text-embedding-3-small",
+            "embedding_model": "text-embedding-3-small",
             "embedding_dim": SCHEMA_EMBEDDING_DIM,
             "llm_temperature": 0.0,
             "retrieval_top_k": 5,

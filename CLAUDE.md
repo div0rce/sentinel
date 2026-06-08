@@ -53,9 +53,11 @@ This is a portfolio project demonstrating enterprise-grade, auditable AI for reg
 
 - **Backend:** Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2.x, Alembic
 - **DB:** PostgreSQL 16 + `pgvector`
-- **AI:** Anthropic Claude API for generation/extraction; embeddings via a hosted provider
-  (`text-embedding-3-small` or `voyage-3-lite`) **behind an interface** in `backend/app/llm/` and
-  `backend/app/embeddings/` so both are swappable and **mocked in tests** (no live API calls in CI).
+- **AI:** hosted LLM for generation/extraction (Anthropic Claude **or** Google Gemini, via
+  `LLM_PROVIDER`); embeddings via a hosted provider (`text-embedding-3-small`, `gemini-embedding-2`,
+  or `voyage-3-lite`, via `EMBEDDINGS_PROVIDER`) — all **behind an interface** in `backend/app/llm/`
+  and `backend/app/embeddings/` so both are swappable and **mocked in tests** (no live API calls in
+  CI). A single free Google AI Studio key can drive both LLM and embeddings.
 - **Frontend:** React + TypeScript (Vite), Recharts
 - **Infra:** Docker + docker-compose (dev); Terraform → AWS ECS Fargate + RDS (M10)
 - **CI/CD:** GitHub Actions

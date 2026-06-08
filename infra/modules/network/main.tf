@@ -57,8 +57,8 @@ resource "aws_route_table_association" "public" {
 #   frontend_sg ─→ backend_sg (8000)      (nginx /api proxy to FastAPI)
 #   backend_sg ──→ rds_sg    (5432)       (FastAPI to Postgres)
 #
-# Egress is intentionally open: tasks need to reach ECR, Anthropic, OpenAI, and
-# CloudWatch Logs. RDS does not need egress.
+# Egress is intentionally open: tasks need to reach ECR, the external model APIs
+# (Anthropic / OpenAI / Gemini), and CloudWatch Logs. RDS does not need egress.
 
 resource "aws_security_group" "alb" {
   name        = "${var.project_name}-alb"

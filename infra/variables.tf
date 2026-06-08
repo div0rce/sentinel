@@ -111,3 +111,47 @@ variable "log_retention_days" {
   type        = number
   default     = 7
 }
+
+# --- Backend provider selection (passed through to the ECS task; defaults
+# --- preserve the Anthropic + OpenAI stack). Override at apply time to deploy
+# --- on Gemini, e.g. -var='llm_provider=gemini' -var='embeddings_provider=gemini'.
+
+variable "llm_provider" {
+  description = "Backend LLM provider: anthropic, gemini, or fake."
+  type        = string
+  default     = "anthropic"
+
+  validation {
+    condition     = contains(["anthropic", "gemini", "fake"], var.llm_provider)
+    error_message = "llm_provider must be one of: anthropic, gemini, fake."
+  }
+}
+
+variable "embeddings_provider" {
+  description = "Backend embeddings provider: openai, voyage, gemini, or fake."
+  type        = string
+  default     = "openai"
+
+  validation {
+    condition     = contains(["openai", "voyage", "gemini", "fake"], var.embeddings_provider)
+    error_message = "embeddings_provider must be one of: openai, voyage, gemini, fake."
+  }
+}
+
+variable "embedding_dim" {
+  description = "Embedding vector dimensionality. Must match the pgvector schema (1536)."
+  type        = string
+  default     = "1536"
+}
+
+variable "gemini_model" {
+  description = "Gemini chat model id (used when llm_provider = gemini)."
+  type        = string
+  default     = "gemini-3.5-flash"
+}
+
+variable "gemini_embedding_model" {
+  description = "Gemini embedding model id (used when embeddings_provider = gemini)."
+  type        = string
+  default     = "gemini-embedding-2"
+}
