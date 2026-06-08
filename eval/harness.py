@@ -158,10 +158,12 @@ class EvalContext:
 
 
 def _read_corpus_file(corpus_dir: Path, source_filename: str) -> str:
+    """Read a corpus file's text by name, relative to ``corpus_dir``."""
     return (corpus_dir / source_filename).read_text(encoding="utf-8")
 
 
 def _load_labels(name: str, labels_dir: Path) -> dict[str, Any]:
+    """Load a label set from JSON, requiring a top-level object."""
     data = json.loads((labels_dir / name).read_text(encoding="utf-8"))
     if not isinstance(data, dict):
         raise ValueError(f"label file {name!r} must contain a JSON object at top level")
@@ -202,6 +204,7 @@ def _ingest_relevant_sources(
 def _resolve_chunk_id(
     session: Session, ctx: EvalContext, source_filename: str, chunk_ord: int
 ) -> int | None:
+    """Resolve the chunk id for a ``(source file, chunk ord)`` pair, or ``None``."""
     text = _read_corpus_file(ctx.corpus_dir, source_filename)
     doc = documents_repo.get_by_hash(session, canonical_hash(text))
     if doc is None:
@@ -417,6 +420,7 @@ def evaluate_retrieval(session: Session, ctx: EvalContext) -> RetrievalResult:
 
 
 def _parse_cited_chunk_ids(text: str) -> set[int]:
+    """Return the chunk ids cited as ``[chunk:N]`` markers in ``text``."""
     return {int(m.group(1)) for m in CITATION_PATTERN.finditer(text)}
 
 
@@ -540,6 +544,7 @@ def evaluate_rag(session: Session, ctx: EvalContext) -> RagResult:
 
 
 def _settings_summary(settings: Settings) -> dict[str, Any]:
+    """Snapshot the run's provider / model / threshold settings for RESULTS.md."""
     # Report the *active* provider's model, not a hardcoded Anthropic/OpenAI label, so
     # a Gemini (or fake) run does not mislabel itself in RESULTS.md (Golden Rule #5).
     return {
@@ -578,6 +583,7 @@ def referenced_files(labels_dir: Path = LABELS_DIR) -> Iterable[str]:
 
 
 def _collect_filenames(labels: dict[str, Any]) -> Sequence[str]:
+    """Return every ``source_filename`` referenced in a single label set."""
     items = [e["source_filename"] for e in labels.get("items", []) if "source_filename" in e]
     relevant = [
         rel["source_filename"]

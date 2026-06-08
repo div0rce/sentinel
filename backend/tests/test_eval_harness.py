@@ -65,6 +65,7 @@ class ScriptedFakeLLM:
     def complete(
         self, *, system: str, user: str, max_tokens: int, temperature: float
     ) -> LLMResponse:
+        """Return the chunk-keyed scripted response if set, else the default text."""
         self.calls += 1
         match = re.search(r"\[chunk:(\d+)\]", user)
         text: str
@@ -80,14 +81,17 @@ class _RankedEmbedder:
     input text. Pins cosine similarity rankings for the retrieval/RAG tests."""
 
     def __init__(self, mapping: dict[str, list[float]], default: list[float] | None = None) -> None:
+        """Store the text→vector mapping and the fallback vector for unmatched text."""
         self._mapping = mapping
         self._default = default or _basis(0)
 
     @property
     def dim(self) -> int:
+        """Embedding dimension (matches the database schema)."""
         return SCHEMA_EMBEDDING_DIM
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        """Return the mapped vector for each text (first substring match wins)."""
         out: list[list[float]] = []
         for text in texts:
             matched = self._default
@@ -100,6 +104,7 @@ class _RankedEmbedder:
 
 
 def _basis(i: int, dim: int = SCHEMA_EMBEDDING_DIM) -> list[float]:
+    """Unit basis vector with ``1.0`` at index ``i``."""
     v = [0.0] * dim
     v[i] = 1.0
     return v
@@ -118,6 +123,7 @@ def _unit(strength: float, dim: int = SCHEMA_EMBEDDING_DIM) -> list[float]:
 
 
 def _write_corpus(tmp_path: Path, files: dict[str, str]) -> Path:
+    """Write a corpus directory from ``{filename: body}`` and return its path."""
     corpus = tmp_path / "corpus"
     corpus.mkdir()
     for name, body in files.items():
@@ -126,6 +132,7 @@ def _write_corpus(tmp_path: Path, files: dict[str, str]) -> Path:
 
 
 def _write_labels(tmp_path: Path, name: str, content: dict[str, Any]) -> Path:
+    """Write a label JSON file under a labels dir and return the dir."""
     labels = tmp_path / "labels"
     labels.mkdir(exist_ok=True)
     (labels / name).write_text(json.dumps(content), encoding="utf-8")
@@ -153,6 +160,7 @@ def _real_provider_settings(**overrides: Any) -> Settings:
 
 
 def test_evaluate_extraction_emits_na_under_fake_llm(session: Session, tmp_path: Path) -> None:
+    """A fake LLM provider makes extraction non-quotable (n/a, None metrics)."""
     corpus = _write_corpus(tmp_path, {"a.md": "Anything"})
     labels = _write_labels(
         tmp_path,
@@ -188,6 +196,7 @@ def test_evaluate_extraction_emits_na_under_fake_llm(session: Session, tmp_path:
 
 
 def test_evaluate_retrieval_emits_na_under_fake_embedder(session: Session, tmp_path: Path) -> None:
+    """A fake embedder makes retrieval non-quotable (n/a, None metrics)."""
     corpus = _write_corpus(tmp_path, {"a.md": "Anything"})
     labels = _write_labels(
         tmp_path,
@@ -217,6 +226,7 @@ def test_evaluate_retrieval_emits_na_under_fake_embedder(session: Session, tmp_p
 
 
 def test_evaluate_rag_emits_na_under_either_fake(session: Session, tmp_path: Path) -> None:
+    """Either fake provider makes RAG non-quotable (n/a, None metrics)."""
     corpus = _write_corpus(tmp_path, {"a.md": "Anything"})
     labels = _write_labels(
         tmp_path,
@@ -252,6 +262,7 @@ def test_evaluate_rag_emits_na_under_either_fake(session: Session, tmp_path: Pat
 
 
 def _perfect_invoice_json_for(chunk_id: int) -> str:
+    """Build a perfect-extraction invoice JSON whose fields cite ``chunk_id``."""
     return json.dumps(
         {
             "invoice_number": {
@@ -275,12 +286,14 @@ def _perfect_invoice_json_for(chunk_id: int) -> str:
 
 
 def _wrong_vendor_invoice_json_for(chunk_id: int) -> str:
+    """Perfect invoice JSON but with a wrong vendor value (one bad field)."""
     payload = json.loads(_perfect_invoice_json_for(chunk_id))
     payload["vendor"]["value"] = "WRONG"
     return json.dumps(payload)
 
 
 def _expected_invoice_payload() -> dict[str, Any]:
+    """The ground-truth invoice payload the extraction fixtures score against."""
     return {
         "invoice_number": "INV-X",
         "vendor": "Acme",
@@ -292,6 +305,7 @@ def _expected_invoice_payload() -> dict[str, Any]:
 def test_evaluate_extraction_perfect_run_yields_unit_accuracy(
     session: Session, tmp_path: Path
 ) -> None:
+    """A perfect extraction run yields 1.0 on micro/macro and every per-field axis."""
     corpus = _write_corpus(tmp_path, {"x.md": "INV-X from Acme, 2026-01-22, total $1,234.56."})
     labels = _write_labels(
         tmp_path,
@@ -437,6 +451,7 @@ def test_evaluate_rag_pins_three_rates_on_happy_path(session: Session, tmp_path:
     embedder = _RankedEmbedder({"Initech": _unit(1.0)}, default=_unit(1.0))
 
     def respond(cid: int) -> str:
+        """Answer citing the runtime-allocated chunk id with the expected substring."""
         return f"The total due is 90,006.92 dollars [chunk:{cid}]."
 
     llm = ScriptedFakeLLM(response_for_chunk=respond)
@@ -475,6 +490,7 @@ def test_evaluate_rag_pins_three_rates_on_happy_path(session: Session, tmp_path:
 
 
 def test_render_pending_contains_methodology_only_no_numbers() -> None:
+    """The PENDING RESULTS.md renders methodology only — no numeric metrics."""
     body = render_pending()
     assert "Numbers pending real-provider run" in body
     assert "claude-sonnet-4-6" in body
