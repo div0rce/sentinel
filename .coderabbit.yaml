@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+#
+# Versioned CodeRabbit configuration (config-as-code, in preference to hidden
+# Org-UI settings). Encodes this repo's documented docstring convention from
+# CLAUDE.md: docstrings on PUBLIC functions; comments explain *why*, not *what*;
+# test names are self-documenting (a concise one-liner of intent is enough).
+#
+# Note on the "Docstring Coverage" pre-merge check: its threshold is intentionally
+# left at the Org-UI default — this file does not lower or disable it. It only
+# guides the docstrings CodeRabbit *generates* so new code matches the house style.
+
+reviews:
+  profile: assertive
+  auto_review:
+    enabled: true
+    drafts: false
+
+code_generation:
+  docstrings:
+    path_instructions:
+      - path: "backend/app/**/*.py"
+        instructions: |
+          Google-style docstrings on public functions and classes, with Args /
+          Returns / Raises where they add information. Document behaviour and edge
+          cases; keep comments focused on *why*, not *what*. Private helpers may be
+          left undocumented when their name and signature are self-evident.
+      - path: "eval/**/*.py"
+        instructions: |
+          Concise docstrings on public functions and classes. For evaluators and
+          result types, state the honesty-gate behaviour (quotable vs n/a) so the
+          contract is explicit. Comments explain *why*, not *what*.
+      - path: "**/test_*.py"
+        instructions: |
+          A one-line docstring stating what each test verifies (e.g. the asserted
+          metric value or invariant). Keep it concise; the test name carries the
+          rest. Shared fixtures/helpers get a short purpose line.

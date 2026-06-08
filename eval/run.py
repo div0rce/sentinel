@@ -11,7 +11,7 @@ from pathlib import Path
 
 from backend.app.config import get_settings
 from backend.app.db import get_session_factory
-from eval.harness import HarnessReport, run_all
+from eval.harness import EvalContext, HarnessReport, run_all
 from eval.results import render
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -19,6 +19,7 @@ RESULTS_PATH = REPO_ROOT / "eval" / "RESULTS.md"
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    """Build the ``python -m eval.run`` argument parser (``--out`` / ``--no-write``)."""
     parser = argparse.ArgumentParser(
         prog="python -m eval.run",
         description="Run the Sentinel evaluation harness and write eval/RESULTS.md.",
@@ -38,6 +39,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _print_summary(report: HarnessReport) -> None:
+    """Print a one-line-per-evaluator summary of the report to stdout."""
     s = report.settings_summary
     print(
         f"eval: llm={s['llm_provider']}/{s['llm_model']} "
@@ -84,11 +86,13 @@ def _print_summary(report: HarnessReport) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run every evaluator against the configured DB, print a summary, and (unless
+    ``--no-write``) overwrite ``eval/RESULTS.md``. Returns a process exit code."""
     args = _build_parser().parse_args(argv)
     settings = get_settings()
     factory = get_session_factory()
     with factory() as session:
-        report = run_all(session, settings=settings)
+        report = run_all(session, EvalContext.create(settings=settings))
         # The harness only reads; ensure no stray writes leak. Rolling back keeps
         # the eval idempotent against a long-lived DB.
         session.rollback()
