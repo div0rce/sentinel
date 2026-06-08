@@ -19,6 +19,7 @@ RESULTS_PATH = REPO_ROOT / "eval" / "RESULTS.md"
 
 
 def _build_parser() -> argparse.ArgumentParser:
+    """Build the ``python -m eval.run`` argument parser (``--out`` / ``--no-write``)."""
     parser = argparse.ArgumentParser(
         prog="python -m eval.run",
         description="Run the Sentinel evaluation harness and write eval/RESULTS.md.",
@@ -38,6 +39,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def _print_summary(report: HarnessReport) -> None:
+    """Print a one-line-per-evaluator summary of the report to stdout."""
     s = report.settings_summary
     print(
         f"eval: llm={s['llm_provider']}/{s['llm_model']} "
@@ -84,6 +86,8 @@ def _print_summary(report: HarnessReport) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Run every evaluator against the configured DB, print a summary, and (unless
+    ``--no-write``) overwrite ``eval/RESULTS.md``. Returns a process exit code."""
     args = _build_parser().parse_args(argv)
     settings = get_settings()
     factory = get_session_factory()

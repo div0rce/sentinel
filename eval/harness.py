@@ -57,6 +57,9 @@ CITATION_PATTERN = re.compile(r"\[chunk:(\d+)\]")
 
 @dataclass(frozen=True, slots=True)
 class ExtractionResult:
+    """Scored extraction metrics, or an n/a result (``quotable=False``) when the
+    LLM provider is fake or no extraction succeeded."""
+
     n_documents: int
     quotable: bool
     micro_accuracy: float | None = None
@@ -69,6 +72,9 @@ class ExtractionResult:
 
 @dataclass(frozen=True, slots=True)
 class RetrievalResult:
+    """Scored retrieval metrics (precision@k / recall@k / MRR), or an n/a result
+    (``quotable=False``) under the fake embedder or when no query resolved."""
+
     n_queries: int
     k: int
     quotable: bool
@@ -80,6 +86,10 @@ class RetrievalResult:
 
 @dataclass(frozen=True, slots=True)
 class RagResult:
+    """Scored RAG metrics (citation-validity / cites-relevant / substring-match
+    rates), or an n/a result (``quotable=False``) under a fake provider or when
+    every question was refused."""
+
     n_questions: int
     refusals: int
     answered: int
@@ -92,6 +102,9 @@ class RagResult:
 
 @dataclass(frozen=True, slots=True)
 class HarnessReport:
+    """The combined output of all three evaluators plus the run's settings summary,
+    consumed by :mod:`eval.results` to render ``RESULTS.md``."""
+
     extraction: ExtractionResult
     retrieval: RetrievalResult
     rag: RagResult
