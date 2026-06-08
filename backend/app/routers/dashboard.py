@@ -34,16 +34,22 @@ class VolumePoint(BaseModel):
 
 
 class VolumeResponse(BaseModel):
+    """Daily document-ingest volume series (``points``) over the last ``days``."""
+
     days: int = Field(ge=1)
     points: list[VolumePoint]
 
 
 class CategoryPoint(BaseModel):
+    """Document count for a single extraction schema."""
+
     schema_name: str
     count: int = Field(ge=0)
 
 
 class CategoryResponse(BaseModel):
+    """Per-schema document counts for the category breakdown."""
+
     points: list[CategoryPoint]
 
 
@@ -59,6 +65,8 @@ class ConfidenceBucket(BaseModel):
 
 
 class ConfidenceResponse(BaseModel):
+    """Per-field confidence histogram (buckets) plus the total field count."""
+
     buckets: list[ConfidenceBucket]
     total_fields: int = Field(ge=0)
 
@@ -71,6 +79,8 @@ class SlaBucket(BaseModel):
 
 
 class SlaResponse(BaseModel):
+    """Review-queue SLA summary: needs-review totals and per-age-bucket counts."""
+
     threshold_hours: int = Field(ge=1)
     total_needs_review: int = Field(ge=0)
     over_sla: int = Field(ge=0)
@@ -96,6 +106,8 @@ class Kpi(BaseModel):
 
 
 class KpiResponse(BaseModel):
+    """The dashboard KPI tiles plus the SLA threshold and a generated-at timestamp."""
+
     kpis: list[Kpi]
     threshold_hours: int = Field(ge=1)
     generated_at: str  # ISO-8601 UTC; lets the UI footnote show a real refresh time

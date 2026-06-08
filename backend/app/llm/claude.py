@@ -41,6 +41,7 @@ class ClaudeClient:
 
     @property
     def model_name(self) -> str:
+        """Identifier of the underlying Anthropic model."""
         return self._model
 
     def complete(
@@ -51,6 +52,7 @@ class ClaudeClient:
         max_tokens: int,
         temperature: float,
     ) -> LLMResponse:
+        """Return a single completion from Anthropic's ``/v1/messages`` endpoint."""
         response = httpx.post(
             f"{self._base_url}/v1/messages",
             headers={

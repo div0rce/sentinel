@@ -39,6 +39,8 @@ class ReviewItem(BaseModel):
 
 
 class ReviewQueueResponse(BaseModel):
+    """The list of extractions currently awaiting human review."""
+
     items: list[ReviewItem]
 
 
@@ -50,6 +52,8 @@ class ReviewDecisionRequest(BaseModel):
 
 
 class ReviewDecisionResponse(BaseModel):
+    """The persisted workflow-item state returned after an approve/reject decision."""
+
     id: int
     extraction_id: int
     status: Literal["auto_approved", "rejected"]

@@ -43,9 +43,12 @@ class OpenAIEmbedder:
 
     @property
     def dim(self) -> int:
+        """Output vector dimension."""
         return self._dim
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        """Embed each text via OpenAI's ``/v1/embeddings`` — one vector per input,
+        in order. Returns ``[]`` for empty input and validates the returned length."""
         if not texts:
             return []
         # OpenAI accepts a list input and returns one embedding per input in order.
