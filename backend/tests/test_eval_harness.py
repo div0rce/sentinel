@@ -38,6 +38,7 @@ from backend.app.embeddings import FakeEmbedder
 from backend.app.llm import LLMResponse
 from backend.app.models import SCHEMA_EMBEDDING_DIM
 from eval.harness import (
+    EvalContext,
     HarnessReport,
     RagResult,
     RetrievalResult,
@@ -171,14 +172,14 @@ def test_evaluate_extraction_emits_na_under_fake_llm(session: Session, tmp_path:
             ]
         },
     )
-    result = evaluate_extraction(
-        session,
+    ctx = EvalContext(
         settings=Settings.model_validate({"llm_provider": "fake", "embeddings_provider": "fake"}),
         llm=ScriptedFakeLLM(),
         embedder=FakeEmbedder(),
         corpus_dir=corpus,
         labels_dir=labels,
     )
+    result = evaluate_extraction(session, ctx)
     assert result.quotable is False
     assert result.micro_accuracy is None
     assert result.macro_accuracy is None
@@ -201,13 +202,13 @@ def test_evaluate_retrieval_emits_na_under_fake_embedder(session: Session, tmp_p
             ],
         },
     )
-    result = evaluate_retrieval(
-        session,
+    ctx = EvalContext(
         settings=Settings.model_validate({"embeddings_provider": "fake"}),
         embedder=FakeEmbedder(),
         corpus_dir=corpus,
         labels_dir=labels,
     )
+    result = evaluate_retrieval(session, ctx)
     assert result.quotable is False
     assert result.precision_at_k is None
     assert result.recall_at_k is None
@@ -234,14 +235,14 @@ def test_evaluate_rag_emits_na_under_either_fake(session: Session, tmp_path: Pat
         Settings.model_validate({"llm_provider": "fake", "embeddings_provider": "openai"}),
         Settings.model_validate({"llm_provider": "anthropic", "embeddings_provider": "fake"}),
     ):
-        result = evaluate_rag(
-            session,
+        ctx = EvalContext(
             settings=settings,
             llm=ScriptedFakeLLM(),
             embedder=FakeEmbedder(),
             corpus_dir=corpus,
             labels_dir=labels,
         )
+        result = evaluate_rag(session, ctx)
         assert result.quotable is False
         assert result.citation_validity_rate is None
         assert result.cites_relevant_rate is None
@@ -307,14 +308,14 @@ def test_evaluate_extraction_perfect_run_yields_unit_accuracy(
     )
     llm = ScriptedFakeLLM(response_for_chunk=_perfect_invoice_json_for)
 
-    result = evaluate_extraction(
-        session,
+    ctx = EvalContext(
         settings=_real_provider_settings(),
         llm=llm,
         embedder=FakeEmbedder(),
         corpus_dir=corpus,
         labels_dir=labels,
     )
+    result = evaluate_extraction(session, ctx)
     assert result.quotable is True
     assert result.failed_extractions == 0
     assert result.micro_accuracy == pytest.approx(1.0)
@@ -345,14 +346,14 @@ def test_evaluate_extraction_one_wrong_field_pins_micro_macro(
     )
     llm = ScriptedFakeLLM(response_for_chunk=_wrong_vendor_invoice_json_for)
 
-    result = evaluate_extraction(
-        session,
+    ctx = EvalContext(
         settings=_real_provider_settings(),
         llm=llm,
         embedder=FakeEmbedder(),
         corpus_dir=corpus,
         labels_dir=labels,
     )
+    result = evaluate_extraction(session, ctx)
     assert result.quotable is True
     assert result.failed_extractions == 0
     # 3 of 4 fields correct → micro = 0.75. Macro = mean of (1, 0, 1, 1) = 0.75.
@@ -410,13 +411,13 @@ def test_evaluate_retrieval_pins_precision_recall_mrr(session: Session, tmp_path
         },
     )
 
-    result = evaluate_retrieval(
-        session,
+    ctx = EvalContext(
         settings=_real_provider_settings(retrieval_top_k=2),
         embedder=embedder,
         corpus_dir=corpus,
         labels_dir=labels,
     )
+    result = evaluate_retrieval(session, ctx)
     assert result.quotable is True
     assert result.k == 2
     assert result.precision_at_k == pytest.approx(0.5)
@@ -454,14 +455,14 @@ def test_evaluate_rag_pins_three_rates_on_happy_path(session: Session, tmp_path:
         },
     )
 
-    result = evaluate_rag(
-        session,
+    ctx = EvalContext(
         settings=_real_provider_settings(retrieval_top_k=3),
         llm=llm,
         embedder=embedder,
         corpus_dir=corpus,
         labels_dir=labels,
     )
+    result = evaluate_rag(session, ctx)
     assert result.quotable is True
     assert result.refusals == 0
     assert result.answered == 1
@@ -502,14 +503,14 @@ def test_render_writes_real_metrics_when_quotable(session: Session, tmp_path: Pa
     )
     llm = ScriptedFakeLLM(response_for_chunk=_perfect_invoice_json_for)
 
-    extraction = evaluate_extraction(
-        session,
+    ctx = EvalContext(
         settings=_real_provider_settings(),
         llm=llm,
         embedder=FakeEmbedder(),
         corpus_dir=corpus,
         labels_dir=labels,
     )
+    extraction = evaluate_extraction(session, ctx)
 
     report = HarnessReport(
         extraction=extraction,

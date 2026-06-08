@@ -11,7 +11,7 @@ from pathlib import Path
 
 from backend.app.config import get_settings
 from backend.app.db import get_session_factory
-from eval.harness import HarnessReport, run_all
+from eval.harness import EvalContext, HarnessReport, run_all
 from eval.results import render
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -88,7 +88,7 @@ def main(argv: list[str] | None = None) -> int:
     settings = get_settings()
     factory = get_session_factory()
     with factory() as session:
-        report = run_all(session, settings=settings)
+        report = run_all(session, EvalContext.create(settings=settings))
         # The harness only reads; ensure no stray writes leak. Rolling back keeps
         # the eval idempotent against a long-lived DB.
         session.rollback()
