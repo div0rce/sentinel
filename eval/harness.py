@@ -73,7 +73,11 @@ class ExtractionResult:
 @dataclass(frozen=True, slots=True)
 class RetrievalResult:
     """Scored retrieval metrics (precision@k / recall@k / MRR), or an n/a result
-    (``quotable=False``) under the fake embedder or when no query resolved."""
+    (``quotable=False``) under the fake embedder or when no query resolved.
+
+    When ``quotable``, ``n_queries`` is the number of queries actually *scored* —
+    label queries whose relevant chunks don't resolve are skipped and excluded from
+    the averages. The n/a result reports the total label-set query count instead."""
 
     n_queries: int
     k: int
@@ -141,8 +145,12 @@ class EvalContext:
         return cls(settings=settings, embedder=get_embedder(settings))
 
     def require_llm(self) -> LLMClient:
-        """Return the LLM, resolving it from settings on first need. Evaluators that
-        never call this (e.g. retrieval) never force an LLM provider to resolve."""
+        """Return the LLM if set, otherwise resolve one from settings.
+
+        Does not cache the result (this is a frozen dataclass), so callers should
+        bind the returned client to a local if they use it more than once.
+        Evaluators that never call this (e.g. retrieval) never force an LLM provider
+        to resolve."""
         return self.llm if self.llm is not None else get_llm(self.settings)
 
 
