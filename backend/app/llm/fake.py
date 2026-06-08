@@ -35,6 +35,8 @@ class FakeLLM:
         max_tokens: int,
         temperature: float,
     ) -> LLMResponse:
+        """Return the canned response (or ``response_factory`` output); inputs are
+        ignored. Deterministic by construction so tests fully control the output."""
         if self.response_factory is not None:
             text = self.response_factory(system, user)
         else:

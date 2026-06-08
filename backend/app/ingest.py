@@ -194,6 +194,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    """Entry point for ``python -m backend.app.ingest`` (``make seed``): ingest every
+    document under the given path and print a summary. Returns a process exit code."""
     args = _build_parser().parse_args(argv)
     if not args.path.exists():
         print(f"error: path does not exist: {args.path}", file=sys.stderr)

@@ -60,6 +60,7 @@ class GeminiEmbedder:
 
     @property
     def dim(self) -> int:
+        """Output vector dimension."""
         return self._dim
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:

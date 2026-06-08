@@ -97,6 +97,8 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
+        """Assign or propagate a request id, bind it to the structlog context for the
+        duration of the request, and echo it back on the response header."""
         inbound = request.headers.get(self.HEADER_NAME, "")
         request_id = _sanitise_inbound(inbound) or _generate_request_id()
         request.state.request_id = request_id

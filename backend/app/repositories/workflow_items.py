@@ -70,6 +70,7 @@ def create_if_absent(
 
 
 def get(session: Session, item_id: int) -> WorkflowItem | None:
+    """Return the workflow item with ``item_id``, or ``None`` if it does not exist."""
     return session.get(WorkflowItem, item_id)
 
 

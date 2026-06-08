@@ -46,6 +46,7 @@ class GeminiClient:
 
     @property
     def model_name(self) -> str:
+        """Identifier of the underlying Gemini model."""
         return self._model
 
     def complete(

@@ -35,6 +35,7 @@ def create(
 
 
 def get(session: Session, extraction_id: int) -> Extraction | None:
+    """Return the extraction with ``extraction_id``, or ``None`` if it does not exist."""
     return session.get(Extraction, extraction_id)
 
 

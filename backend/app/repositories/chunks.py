@@ -56,4 +56,5 @@ def list_for_document(session: Session, document_id: int) -> list[Chunk]:
 
 
 def get(session: Session, chunk_id: int) -> Chunk | None:
+    """Return the chunk with ``chunk_id``, or ``None`` if it does not exist."""
     return session.get(Chunk, chunk_id)

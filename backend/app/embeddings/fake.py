@@ -30,9 +30,11 @@ class FakeEmbedder:
 
     @property
     def dim(self) -> int:
+        """Output vector dimension."""
         return self._dim
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
+        """Return one deterministic, hash-derived vector per input text, in order."""
         return [self._embed_one(t) for t in texts]
 
     def _embed_one(self, text: str) -> list[float]:
